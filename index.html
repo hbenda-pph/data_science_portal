@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Datos - Análisis de Inflexión</title>
+    <!-- Carga de Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carga de Plotly.js para gráficos interactivos -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+    <!-- Fuente Inter de Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fc; }
+        .card { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06); }
+        .loader-overlay { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(2px); z-index: 100; }
+        .spinner { border-top-color: #3b82f6; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-indigo-700">Analytics Portal</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="#" class="text-gray-600 hover:text-indigo-700 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                    <a href="#" class="text-gray-600 hover:text-indigo-700 px-3 py-2 rounded-md text-sm font-medium">Datasets</a>
+                    <a href="#" class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-2 rounded-md text-sm font-medium">Inflection Analysis</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Loader Overlay -->
+    <div id="loader" class="fixed inset-0 flex items-center justify-center loader-overlay hidden">
+        <div class="flex flex-col items-center p-6 bg-white rounded-lg card">
+            <div class="spinner w-8 h-8 border-4 rounded-full border-gray-200"></div>
+            <p class="mt-3 text-gray-700 font-medium">Cargando datos de BigQuery...</p>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-extrabold text-gray-900">Análisis de Puntos de Inflexión de Llamadas</h1>
+            <p class="mt-2 text-lg text-gray-500">Identificación de picos y valles estacionales en el volumen de llamadas de ServiceTitan para optimización de recursos.</p>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="bg-white card p-6 rounded-xl mb-8 border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Configuración de Análisis</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Selector de Compañía -->
+                <div>
+                    <label for="company-select" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Compañía</label>
+                    <select id="company-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg shadow-sm">
+                        <option value="">Cargando Compañías...</option>
+                    </select>
+                </div>
+
+                <!-- Selector de Método de Detección -->
+                <div>
+                    <label for="method-select" class="block text-sm font-medium text-gray-700 mb-1">Método de Detección</label>
+                    <select id="method-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg shadow-sm">
+                        <option value="Hybrid (3-4 months)">Híbrido (Distancia Mínima 3 meses)</option>
+                        <option value="Mathematical Strict">Estricto Matemático (Top 2)</option>
+                        <option value="Original (find_peaks)">Original (SciPy find_peaks)</option>
+                    </select>
+                </div>
+
+                <!-- Selector de Modo de Análisis -->
+                <div>
+                    <label for="mode-select" class="block text-sm font-medium text-gray-700 mb-1">Datos en Tabla</label>
+                    <select id="mode-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg shadow-sm">
+                        <option value="percentages">Porcentajes Mensuales</option>
+                        <option value="absolute">Volumen Absoluto de Llamadas</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div id="results-container" class="space-y-8">
+            
+            <!-- Analysis Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Total Calls Card -->
+                <div class="bg-white card p-6 rounded-xl border-l-4 border-indigo-500">
+                    <p class="text-sm font-medium text-gray-500">Total de Llamadas Históricas</p>
+                    <p id="total-calls-metric" class="mt-1 text-3xl font-bold text-gray-900">--</p>
+                </div>
+                <!-- Peak Months Card -->
+                <div class="bg-white card p-6 rounded-xl border-l-4 border-green-500">
+                    <p class="text-sm font-medium text-gray-500">Meses Pico (Sugeridos)</p>
+                    <p id="peak-months-metric" class="mt-1 text-3xl font-bold text-green-700">--</p>
+                </div>
+                <!-- Valley Months Card -->
+                <div class="bg-white card p-6 rounded-xl border-l-4 border-red-500">
+                    <p class="text-sm font-medium text-gray-500">Meses Valle (Sugeridos)</p>
+                    <p id="valley-months-metric" class="mt-1 text-3xl font-bold text-red-700">--</p>
+                </div>
+            </div>
+
+            <!-- Plotly Graph -->
+            <div class="bg-white card p-6 rounded-xl">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Curva de Estacionalidad Mensual</h2>
+                <div id="inflection-plot" class="w-full h-96">
+                    <p class="text-gray-500 text-center py-10">Seleccione una compañía para ejecutar el análisis.</p>
+                </div>
+            </div>
+
+            <!-- Annual Data Table -->
+            <div class="bg-white card p-6 rounded-xl">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Detalle Anual de Datos</h2>
+                <div class="overflow-x-auto">
+                    <table id="annual-data-table" class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Año</th>
+                                <!-- Meses se insertan aquí por JS -->
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <!-- Filas se insertan aquí por JS -->
+                            <tr><td colspan="13" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No hay datos para mostrar.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer for padding -->
+        <div class="h-16"></div>
+
+    </main>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const loader = document.getElementById('loader');
+        const companySelect = document.getElementById('company-select');
+        const methodSelect = document.getElementById('method-select');
+        const modeSelect = document.getElementById('mode-select');
+        const plotDiv = document.getElementById('inflection-plot');
+        const tableBody = document.querySelector('#annual-data-table tbody');
+        const tableHeadRow = document.querySelector('#annual-data-table thead tr');
+
+        // --- Helper Functions ---
+
+        function showLoader() { loader.classList.remove('hidden'); }
+        function hideLoader() { loader.classList.add('hidden'); }
+
+        async function safeFetch(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                hideLoader();
+                alert(`Error al conectar con el servidor: ${error.message}. Asegúrate de que el backend (main.py) esté corriendo.`);
+                return null;
+            }
+        }
+
+        // --- Data Fetching and Initialization ---
+
+        async function fetchCompanies() {
+            showLoader();
+            const data = await safeFetch(`${API_BASE}/api/companies`);
+            
+            companySelect.innerHTML = '';
+            if (data && data.companies.length > 0) {
+                const defaultOption = document.createElement('option');
+                defaultOption.value = "";
+                defaultOption.textContent = "Selecciona una compañía...";
+                defaultOption.disabled = true;
+                defaultOption.selected = true;
+                companySelect.appendChild(defaultOption);
+
+                data.companies.forEach(company => {
+                    const option = document.createElement('option');
+                    option.value = company.company_id;
+                    option.textContent = company.company_name;
+                    companySelect.appendChild(option);
+                });
+                companySelect.disabled = false;
+            } else {
+                companySelect.innerHTML = '<option value="">No se encontraron compañías.</option>';
+                companySelect.disabled = true;
+            }
+            hideLoader();
+        }
+
+        // --- Plotting Functions ---
+
+        function getMonthName(monthNumber) {
+            const date = new Date();
+            date.setMonth(monthNumber - 1);
+            return date.toLocaleString('es-ES', { month: 'short' });
+        }
+
+        function createPlotlyLayout(title, yTitle) {
+            return {
+                title: title,
+                xaxis: { title: 'Mes del Año', tickvals: Array.from({length: 12}, (_, i) => i + 1), ticktext: Array.from({length: 12}, (_, i) => getMonthName(i + 1)) },
+                yaxis: { title: yTitle, rangemode: 'tozero' },
+                hovermode: 'x unified',
+                responsive: true,
+                margin: { t: 50, b: 50, l: 50, r: 20 }
+            };
+        }
+
+        function drawInflectionPlot(data) {
+            const months = data.curve_data.map(d => d.month);
+            const percentages = data.curve_data.map(d => d.percentage);
+            
+            const layout = createPlotlyLayout(
+                'Distribución Porcentual de Llamadas vs. Mes',
+                'Porcentaje del Total Anual (%)'
+            );
+            
+            const traces = [];
+
+            // 1. Curva de estacionalidad (Línea principal)
+            traces.push({
+                x: months,
+                y: percentages,
+                mode: 'lines+markers',
+                type: 'scatter',
+                name: 'Tendencia Mensual',
+                line: { shape: 'spline', smoothing: 1.3, color: '#3b82f6', width: 4 },
+                marker: { size: 8 }
+            });
+
+            // 2. Picos (Peaks) - Marcadores verdes
+            const peakMarkers = data.peak_months.map(m => {
+                const index = months.indexOf(m);
+                return { x: m, y: percentages[index] };
+            });
+
+            traces.push({
+                x: peakMarkers.map(m => m.x),
+                y: peakMarkers.map(m => m.y),
+                mode: 'markers',
+                type: 'scatter',
+                name: 'Pico Estacional',
+                marker: { color: '#10b981', size: 12, symbol: 'triangle-up', line: { width: 1, color: 'white' } }
+            });
+
+            // 3. Valles (Valleys) - Marcadores rojos
+            const valleyMarkers = data.valley_months.map(m => {
+                const index = months.indexOf(m);
+                return { x: m, y: percentages[index] };
+            });
+
+            traces.push({
+                x: valleyMarkers.map(m => m.x),
+                y: valleyMarkers.map(m => m.y),
+                mode: 'markers',
+                type: 'scatter',
+                name: 'Valle Estacional',
+                marker: { color: '#ef4444', size: 12, symbol: 'triangle-down', line: { width: 1, color: 'white' } }
+            });
+
+            Plotly.newPlot(plotDiv, traces, layout);
+            
+            // Actualizar Métricas
+            document.getElementById('total-calls-metric').textContent = data.total_calls.toLocaleString('es-ES');
+            document.getElementById('peak-months-metric').textContent = data.peak_months.map(getMonthName).join(', ');
+            document.getElementById('valley-months-metric').textContent = data.valley_months.map(getMonthName).join(', ');
+        }
+
+        // --- Table Rendering Functions ---
+
+        function renderAnnualTable(annualTable, analysisMode) {
+            tableBody.innerHTML = '';
+            
+            const years = Object.keys(annualTable).sort((a, b) => parseInt(b) - parseInt(a));
+            const months = Array.from({length: 12}, (_, i) => i + 1);
+            const headerRow = document.querySelector('#annual-data-table thead tr');
+
+            // 1. Regenerar encabezados de meses
+            headerRow.innerHTML = '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Año</th>';
+            months.forEach(m => {
+                const monthName = getMonthName(m);
+                const th = document.createElement('th');
+                th.className = 'px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider';
+                th.textContent = monthName;
+                headerRow.appendChild(th);
+            });
+
+            // 2. Insertar filas de datos
+            if (years.length === 0) {
+                const row = tableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 13;
+                cell.className = "px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500";
+                cell.textContent = "No hay datos anuales para mostrar.";
+                return;
+            }
+
+            years.forEach(year => {
+                const row = tableBody.insertRow();
+                // Columna de Año
+                let cell = row.insertCell();
+                cell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50';
+                cell.textContent = year;
+
+                // Columnas de Meses
+                months.forEach(m => {
+                    const monthKey = String(m);
+                    const value = annualTable[year][monthKey];
+                    cell = row.insertCell();
+                    cell.className = 'px-3 py-4 whitespace-nowrap text-center text-sm';
+                    
+                    if (analysisMode === 'percentages') {
+                        cell.textContent = `${value}%`;
+                        cell.classList.add(value > 10 ? 'text-green-700' : (value < 6 ? 'text-red-700' : 'text-gray-700'));
+                    } else {
+                        cell.textContent = value.toLocaleString('es-ES');
+                        cell.classList.add('text-gray-700');
+                    }
+                });
+            });
+        }
+
+
+        // --- Main Execution Logic ---
+
+        async function runAnalysis() {
+            const companyId = companySelect.value;
+            const detectionMethod = methodSelect.value;
+            const analysisMode = modeSelect.value;
+            
+            if (!companyId) return;
+
+            showLoader();
+            
+            const url = `${API_BASE}/api/inflection-analysis`;
+            const data = {
+                company_id: parseInt(companyId),
+                detection_method: detectionMethod,
+                analysis_mode: analysisMode
+            };
+
+            const response = await safeFetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            hideLoader();
+
+            if (response && !response.error) {
+                drawInflectionPlot(response);
+                renderAnnualTable(response.annual_table, analysisMode);
+            } else {
+                // Limpiar resultados anteriores en caso de error
+                Plotly.purge(plotDiv);
+                plotDiv.innerHTML = '<p class="text-red-500 text-center py-10">Error al ejecutar el análisis. Consulte la consola del servidor.</p>';
+                tableBody.innerHTML = '<tr><td colspan="13" class="px-6 py-4 whitespace-nowrap text-center text-sm text-red-500">Error al cargar la data anual.</td></tr>';
+            }
+        }
+
+        // --- Event Listeners ---
+        
+        // Ejecutar el análisis cada vez que cambie cualquier selector
+        companySelect.addEventListener('change', runAnalysis);
+        methodSelect.addEventListener('change', runAnalysis);
+        modeSelect.addEventListener('change', runAnalysis);
+
+        // Inicializar la carga de compañías al cargar la página
+        window.onload = () => {
+            fetchCompanies();
+        };
+
+    </script>
+</body>
+</html>

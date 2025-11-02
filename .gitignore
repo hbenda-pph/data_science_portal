@@ -1,0 +1,25 @@
+#Ignorar entornos virtuales
+venv/
+.env/
+.venv/
+
+#Ignorar archivos temporales y de caché de Python
+pycache/
+*.pyc
+*.pyo
+
+#Ignorar logs y archivos de depuración
+*.log
+*.sqlite
+
+#Ignorar datos de Jupyter/Colab (si usas Colab en el mismo directorio)
+*.ipynb_checkpoints
+.ipynb
+
+#Ignorar archivos de caché de Pandas/NumPy
+.pkl
+.csv.gz
+.feather
+
+#Ignorar archivos de Google Cloud
+    .gcloud/
