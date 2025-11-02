@@ -67,6 +67,17 @@ def get_calls_info():
         
         # Ejecutar la consulta
         df = client.query(query).to_dataframe()
+
+        if 'company_name' not in df.columns:
+            try:
+                companies_query = """
+                    SELECT company_id, company_name
+                    FROM `pph-central.settings.companies`
+                """
+                companies_df = client.query(companies_query).to_dataframe()
+                df = df.merge(companies_df, on='company_id', how='left')
+            except Exception as metadata_error:
+                print(f"WARN: No se pudo enriquecer company_name: {metadata_error}")
         
         # Almacenar en caché y actualizar tiempo
         _calls_df_cache = df
@@ -80,9 +91,16 @@ def get_calls_info():
         
         # Generar Mock Data para desarrollo local o fallo de credenciales
         dates = pd.date_range(start='2022-01-01', periods=730)
+        mock_companies = {
+            'C1001': 'Alpha Plumbing',
+            'C1002': 'Bravo HVAC',
+            'C1003': 'Charlie Electrical'
+        }
+        mock_company_ids = np.random.choice(list(mock_companies.keys()), size=730)
         df_mock = pd.DataFrame({
             'date': dates.strftime('%Y%m%d'),
-            'company_id': np.random.choice(['C1001', 'C1002', 'C1003'], size=730),
+            'company_id': mock_company_ids,
+            'company_name': [mock_companies[cid] for cid in mock_company_ids],
             'calls_count': np.random.randint(50, 300, size=730) + np.sin(np.linspace(0, 10 * np.pi, 730)) * 50
         })
         
@@ -105,14 +123,20 @@ def get_companies():
         if df.empty:
             return jsonify({"error": "No data available"}), 500
             
-        company_ids = sorted(df['company_id'].unique().tolist())
-        companies = [
-            {
-                "company_id": company_id,
-                "company_name": company_id
-            }
-            for company_id in company_ids
-        ]
+        if 'company_name' in df.columns:
+            companies_df = (
+                df[['company_id', 'company_name']]
+                .drop_duplicates()
+                .sort_values(by='company_name')
+            )
+        else:
+            company_ids = sorted(df['company_id'].unique().tolist())
+            companies_df = pd.DataFrame({
+                'company_id': company_ids,
+                'company_name': company_ids
+            })
+
+        companies = companies_df.to_dict(orient='records')
         return jsonify({"companies": companies})
         
     except Exception as e:
