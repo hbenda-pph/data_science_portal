@@ -80,8 +80,7 @@ echo "   TAG: $IMAGE_TAG"
 echo "   Proyecto: $PROJECT_ID"
 echo "   Servicio: $SERVICE_NAME"
 
-Se usa el Dockerfile en el directorio actual
-
+#Se usa el Dockerfile en el directorio actual
 gcloud builds submit --tag "$IMAGE_TAG" . --timeout="30m"
 
 #=============================================================================
