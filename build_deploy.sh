@@ -49,17 +49,17 @@ case "$ENVIRONMENT" in
     dev)
         PROJECT_ID="platform-partners-des" 
         SERVICE_NAME="ds-inflection-portal-dev"
-        REGION="us-central1" # Ajusta tu región de DEV
+        REGION="us-east1" # Ajusta tu región de DEV
         ;;
     qua)
         PROJECT_ID="platform-partners-qua" 
         SERVICE_NAME="ds-inflection-portal-qua"
-        REGION="us-central1" # Ajusta tu región de QUA
+        REGION="us-east1" # Ajusta tu región de QUA
         ;;
     pro)
         PROJECT_ID="platform-partners-pro" 
         SERVICE_NAME="ds-inflection-portal-pro"
-        REGION="us-central1" # Ajusta tu región de PRO
+        REGION="us-east1" # Ajusta tu región de PRO
         ;;
 esac
 
