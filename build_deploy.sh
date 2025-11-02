@@ -67,8 +67,7 @@ esac
 echo "🛠️ Configurando GCloud para el ambiente $ENVIRONMENT..."
 gcloud config set project "$PROJECT_ID"
 
-ID de la imagen en Google Container Registry (GCR) o Artifact Registry
-
+#ID de la imagen en Google Container Registry (GCR) o Artifact Registry
 IMAGE_TAG="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${ENVIRONMENT}_$(date +%Y%m%d%H%M%S)"
 
 #=============================================================================
