@@ -23,11 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 #Comando para ejecutar la aplicación usando Gunicorn (servidor de producción)
-
 #Cloud Run espera que el servicio escuche en el puerto definido por la variable de entorno $PORT
-
 #Usamos 'main:app' donde 'main' es el nombre del archivo python y 'app' es la variable Flask.
-
 #El puerto 8080 es el valor por defecto de $PORT en Cloud Run.
+#CRUCIAL: Se enlaza a 0.0.0.0 y al puerto que Cloud Run proporciona ($PORT)
 
-CMD exec gunicorn --bind :${PORT:-8080} --workers 1 --threads 8 --timeout 0 main:app
+CMD exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --threads 4 --timeout 0 main:app
