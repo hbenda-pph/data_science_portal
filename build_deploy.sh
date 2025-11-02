@@ -49,16 +49,19 @@ case "$ENVIRONMENT" in
     dev)
         PROJECT_ID="platform-partners-des" 
         SERVICE_NAME="ds-inflection-portal-dev"
+        SERVICE_ACCOUNT="streamlit-bigquery-sa@platform-partners-des.iam.gserviceaccount.com"
         REGION="us-east1" # Ajusta tu región de DEV
         ;;
     qua)
         PROJECT_ID="platform-partners-qua" 
         SERVICE_NAME="ds-inflection-portal-qua"
+        SERVICE_ACCOUNT="streamlit-bigquery-sa@platform-partners-qua.iam.gserviceaccount.com"
         REGION="us-east1" # Ajusta tu región de QUA
         ;;
     pro)
         PROJECT_ID="platform-partners-pro" 
         SERVICE_NAME="ds-inflection-portal-pro"
+        SERVICE_ACCOUNT="streamlit-bigquery-sa@platform-partners-pro.iam.gserviceaccount.com"
         REGION="us-east1" # Ajusta tu región de PRO
         ;;
 esac
@@ -89,6 +92,7 @@ gcloud run deploy "${SERVICE_NAME}" \
     --region "${REGION}" \
     --platform "managed" \
     --allow-unauthenticated \
+    --service-account "${SERVICE_ACCOUNT}" \
     --project "${PROJECT_ID}" \
     --cpu "1" \
     --memory "512Mi" \
