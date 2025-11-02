@@ -53,31 +53,34 @@ def get_calls_info():
         # Intenta usar las credenciales de Cloud Run/Compute Engine
         client = bigquery.Client()
         
-        # Consulta SQL (reemplaza con tu consulta real si es necesario)
+        # Consulta SQL tomada del dashboard original (Streamlit)
         query = """
-            SELECT 
-                CAST(FORMAT_DATE('%Y%m%d', call_date) AS STRING) AS date,
-                company_id,
-                calls_count 
-            FROM 
-                `platform-partners-des.service_titan.calls_analysis_table` 
-            ORDER BY 
-                company_id, call_date
+           SELECT c.company_id AS company_id
+                , c.company_name AS company_name
+                , COUNT(DISTINCT cl.campaign_id) AS campaigns
+                , COUNT(cl.lead_call_customer_id) AS customers
+                , cl.location_state AS state
+                , EXTRACT(YEAR FROM DATE(cl.lead_call_created_on)) AS year
+                , EXTRACT(MONTH FROM DATE(cl.lead_call_created_on)) AS month
+                , COUNT(cl.lead_call_id) AS calls
+             FROM `pph-central.analytical.vw_consolidated_call_inbound_location` cl
+             JOIN `pph-central.settings.companies` c
+               ON cl.company_id = c.company_id
+            WHERE DATE(cl.lead_call_created_on) < DATE('2025-10-01')
+              AND EXTRACT(YEAR FROM DATE(cl.lead_call_created_on)) >= 2015
+            GROUP BY c.company_id,
+                     c.company_name,
+                     cl.location_state,
+                     EXTRACT(YEAR FROM DATE(cl.lead_call_created_on)),
+                     EXTRACT(MONTH FROM DATE(cl.lead_call_created_on))
+            ORDER BY c.company_id,
+                     cl.location_state,
+                     EXTRACT(YEAR FROM DATE(cl.lead_call_created_on)),
+                     EXTRACT(MONTH FROM DATE(cl.lead_call_created_on))
         """
         
         # Ejecutar la consulta
         df = client.query(query).to_dataframe()
-
-        if 'company_name' not in df.columns:
-            try:
-                companies_query = """
-                    SELECT company_id, company_name
-                    FROM `pph-central.settings.companies`
-                """
-                companies_df = client.query(companies_query).to_dataframe()
-                df = df.merge(companies_df, on='company_id', how='left')
-            except Exception as metadata_error:
-                print(f"WARN: No se pudo enriquecer company_name: {metadata_error}")
         
         # Almacenar en caché y actualizar tiempo
         _calls_df_cache = df
@@ -90,25 +93,225 @@ def get_calls_info():
         print(f"ERROR: Falló la conexión a BigQuery: {e}. Usando Mock Data.")
         
         # Generar Mock Data para desarrollo local o fallo de credenciales
-        dates = pd.date_range(start='2022-01-01', periods=730)
-        mock_companies = {
-            'C1001': 'Alpha Plumbing',
-            'C1002': 'Bravo HVAC',
-            'C1003': 'Charlie Electrical'
+        np.random.seed(42)
+        mock_company_ids = ['1001', '1002', '1003']
+        mock_company_names = {
+            '1001': 'Company 1001',
+            '1002': 'Company 1002',
+            '1003': 'Company 1003'
         }
-        mock_company_ids = np.random.choice(list(mock_companies.keys()), size=730)
-        df_mock = pd.DataFrame({
-            'date': dates.strftime('%Y%m%d'),
-            'company_id': mock_company_ids,
-            'company_name': [mock_companies[cid] for cid in mock_company_ids],
-            'calls_count': np.random.randint(50, 300, size=730) + np.sin(np.linspace(0, 10 * np.pi, 730)) * 50
-        })
+        years = [2022, 2023, 2024]
+        months = list(range(1, 13))
+        rows = []
+        for company_id in mock_company_ids:
+            for year in years:
+                for month in months:
+                    rows.append({
+                        'company_id': company_id,
+                        'company_name': mock_company_names[company_id],
+                        'campaigns': int(np.random.randint(5, 20)),
+                        'customers': int(np.random.randint(100, 500)),
+                        'state': 'NA',
+                        'year': year,
+                        'month': month,
+                        'calls': int(np.random.randint(50, 300))
+                    })
+        df_mock = pd.DataFrame(rows)
         
         # Asegurar que se almacene el mock data para evitar llamadas repetidas
         _calls_df_cache = df_mock
         _last_data_fetch_time = time.time()
         
         return df_mock
+
+
+def normalize_detection_method(method):
+    if not method:
+        return "Hybrid (3-4 months)"
+    method = method.strip()
+    if method in ("Hybrid (3-4 months)", "Mathematical Strict", "Original (find_peaks)"):
+        return method
+    mapping = {
+        "hybrid": "Hybrid (3-4 months)",
+        "hybrid (3-4 months)": "Hybrid (3-4 months)",
+        "mathematical strict": "Mathematical Strict",
+        "strict": "Mathematical Strict",
+        "original": "Original (find_peaks)",
+        "original (find_peaks)": "Original (find_peaks)",
+        "find_peaks": "Original (find_peaks)"
+    }
+    return mapping.get(method.lower(), "Hybrid (3-4 months)")
+
+
+def normalize_analysis_mode(mode):
+    if not mode:
+        return "percentages"
+    key = mode.strip().lower()
+    if key in ("percentages", "percentage", "percent", "porcentajes"):
+        return "percentages"
+    if key in ("absolute", "absoluto", "absolute numbers"):
+        return "absolute"
+    return "percentages"
+
+
+def prepare_company_dataframe(calls_df, company_id):
+    company_id_str = str(company_id)
+    company_df = calls_df[calls_df['company_id'].astype(str) == company_id_str].copy()
+    if company_df.empty:
+        raise KeyError(f"No data found for company {company_id_str}")
+    required_columns = {'year', 'month', 'calls'}
+    if not required_columns.issubset(company_df.columns):
+        raise ValueError("Dataset incompleto para el análisis de inflexión.")
+    company_df['year'] = company_df['year'].astype(int)
+    company_df['month'] = company_df['month'].astype(int)
+    company_df['calls'] = company_df['calls'].astype(float)
+    return company_df, company_id_str
+
+
+def calculate_monthly_metrics(company_df):
+    monthly_totals = company_df.groupby('month')['calls'].sum()
+    months = list(range(1, 13))
+    monthly_calls = np.array([float(monthly_totals.get(month, 0.0)) for month in months], dtype=float)
+    total_calls = float(monthly_calls.sum())
+    if total_calls > 0:
+        monthly_percentages = (monthly_calls / total_calls) * 100.0
+    else:
+        monthly_percentages = np.zeros(12, dtype=float)
+    return months, monthly_calls, monthly_percentages, total_calls
+
+
+def detect_peaks_valleys_quartiles(calls):
+    calls_array = np.array(calls, dtype=float)
+    if calls_array.size == 0:
+        return np.array([], dtype=int), np.array([], dtype=int)
+    sorted_indices = np.argsort(calls_array)
+    valleys = np.sort(sorted_indices[:2])
+    peaks = np.sort(sorted_indices[-2:])
+    return peaks.astype(int), valleys.astype(int)
+
+
+def detect_inflection_points(monthly_percentages, method):
+    method_normalized = normalize_detection_method(method)
+    percentages = np.array(monthly_percentages, dtype=float)
+    if percentages.size == 0:
+        return np.array([], dtype=int), np.array([], dtype=int)
+    average = np.mean(percentages)
+    if method_normalized == "Original (find_peaks)":
+        peaks, _ = find_peaks(percentages, height=average, distance=2)
+        valleys, _ = find_peaks(-percentages, height=-average, distance=2)
+    elif method_normalized == "Mathematical Strict":
+        peaks, valleys = detect_peaks_valleys_quartiles(percentages)
+    else:
+        peaks, _ = find_peaks(percentages, height=average, distance=3)
+        valleys, _ = find_peaks(-percentages, height=-average, distance=3)
+    return np.array(peaks, dtype=int), np.array(valleys, dtype=int)
+
+
+def calculate_annual_data(company_df, mode):
+    if company_df.empty:
+        return None
+    yearly_monthly = (
+        company_df.groupby(['year', 'month'])['calls']
+        .sum()
+        .reset_index()
+    )
+    if yearly_monthly.empty:
+        return None
+    years = sorted(yearly_monthly['year'].unique())
+    months = list(range(1, 13))
+    annual_table = pd.DataFrame(0.0, index=years, columns=months)
+    for year in years:
+        year_data = yearly_monthly[yearly_monthly['year'] == year]
+        year_total = year_data['calls'].sum()
+        for month in months:
+            month_calls = year_data.loc[year_data['month'] == month, 'calls']
+            value = float(month_calls.iloc[0]) if not month_calls.empty else 0.0
+            if mode == 'percentages':
+                value = (value / year_total * 100.0) if year_total > 0 else 0.0
+            annual_table.at[year, month] = value
+    return annual_table
+
+
+def format_annual_table(annual_df, mode):
+    if annual_df is None or annual_df.empty:
+        return {}
+    table = {}
+    for year in annual_df.index:
+        row = {}
+        for month in annual_df.columns:
+            value = float(annual_df.loc[year, month])
+            if mode == 'percentages':
+                value = round(value, 2)
+            else:
+                value = int(round(value))
+            row[str(int(month))] = value
+        table[str(int(year))] = row
+    return table
+
+
+def build_curve_data(months, monthly_calls, monthly_percentages):
+    curve = []
+    for idx, month in enumerate(months):
+        curve.append({
+            "month": int(month),
+            "percentage": round(float(monthly_percentages[idx]), 4),
+            "calls": float(monthly_calls[idx])
+        })
+    return curve
+
+
+def build_analysis_payload(calls_df, company_id, detection_method, analysis_mode):
+    detection_method = normalize_detection_method(detection_method)
+    analysis_mode = normalize_analysis_mode(analysis_mode)
+    company_df, company_id_str = prepare_company_dataframe(calls_df, company_id)
+    company_name = (
+        company_df['company_name'].dropna().iloc[0]
+        if 'company_name' in company_df.columns and not company_df['company_name'].dropna().empty
+        else company_id_str
+    )
+    months, monthly_calls, monthly_percentages, total_calls = calculate_monthly_metrics(company_df)
+    peaks, valleys = detect_inflection_points(monthly_percentages, detection_method)
+    peak_months = sorted({int(months[idx]) for idx in peaks})
+    valley_months = sorted({int(months[idx]) for idx in valleys})
+    curve_data = build_curve_data(months, monthly_calls, monthly_percentages)
+    annual_df = calculate_annual_data(company_df, analysis_mode)
+    annual_table = format_annual_table(annual_df, analysis_mode)
+
+    summary = {}
+    if 'campaigns' in company_df.columns:
+        summary['campaigns'] = int(company_df['campaigns'].max())
+    if 'customers' in company_df.columns:
+        summary['customers'] = int(company_df['customers'].sum())
+    if 'state' in company_df.columns:
+        states = sorted({str(state) for state in company_df['state'].dropna().unique()})
+        if states:
+            summary['states'] = states
+
+    response = {
+        "company_id": company_id_str,
+        "company_name": company_name,
+        "detection_method": detection_method,
+        "analysis_mode": analysis_mode,
+        "total_calls": int(round(total_calls)),
+        "curve_data": curve_data,
+        "peak_months": peak_months,
+        "valley_months": valley_months,
+        "annual_table": annual_table,
+        "monthly_call_breakdown": {
+            "months": [int(m) for m in months],
+            "calls": [int(round(val)) for val in monthly_calls],
+            "percentages": [round(float(val), 4) for val in monthly_percentages]
+        },
+        "year_range": [
+            int(company_df['year'].min()),
+            int(company_df['year'].max())
+        ]
+    }
+
+    if summary:
+        response['summary'] = summary
+
+    return response
 
 # -----------------------------------------------------------------------------
 # 2. ENDPOINT PARA LISTAR COMPAÑIAS (PARA EL SELECTOR DE FRONTEND)
@@ -147,87 +350,46 @@ def get_companies():
 # 3. ENDPOINT PRINCIPAL: ANALISIS DE INFLEXIÓN
 # -----------------------------------------------------------------------------
 
+def _handle_inflection_analysis_request():
+    try:
+        payload = request.get_json() or {}
+        company_id = payload.get('company_id')
+        if company_id in (None, '', []):
+            company_id = payload.get('companyId')
+        if company_id in (None, '', []):
+            return jsonify({"error": "Missing company_id parameter"}), 400
+
+        detection_method = normalize_detection_method(payload.get('detection_method'))
+        analysis_mode = normalize_analysis_mode(payload.get('analysis_mode'))
+
+        df = get_calls_info()
+        result = build_analysis_payload(df, company_id, detection_method, analysis_mode)
+        return jsonify(result)
+
+    except KeyError as missing_error:
+        return jsonify({
+            "error": "No data found for the requested company",
+            "details": str(missing_error)
+        }), 404
+    except ValueError as validation_error:
+        return jsonify({
+            "error": str(validation_error)
+        }), 400
+    except Exception as e:
+        print(f"Error en análisis de inflexión: {e}")
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+
 @app.route('/api/analysis', methods=['POST'])
 def run_analysis():
-    """
-    Realiza el análisis de inflexión para una compañía y un modo de detección.
-    """
-    try:
-        # Parámetros recibidos del JSON
-        data = request.get_json()
-        company_id = data.get('companyId')
-        detection_method = data.get('detection_method', 'peak_valley') # 'peak_valley' o 'midpoint'
-        analysis_mode = data.get('analysis_mode', 'calls') # 'calls' o 'normalized'
+    """Compatibilidad con versiones anteriores."""
+    return _handle_inflection_analysis_request()
 
-        if not company_id:
-            return jsonify({"error": "Missing companyId parameter"}), 400
 
-        # Obtener Data (usa cache)
-        df = get_calls_info()
-        company_data = df[df['company_id'] == company_id].copy()
-
-        if company_data.empty:
-            return jsonify({"error": f"No data found for company {company_id}"}), 404
-
-        # Preprocesamiento de datos
-        company_data['date'] = pd.to_datetime(company_data['date'], format='%Y%m%d')
-        company_data.set_index('date', inplace=True)
-        
-        # Remuestrear a nivel mensual y rellenar nulos
-        monthly_data = company_data['calls_count'].resample('MS').sum().fillna(0)
-        
-        # Descomposición de series de tiempo
-        # No se aplica descomposición formal por simplicidad, se usa la serie sin suavizar
-
-        # Preparar datos anuales para la tabla (últimos 12 meses)
-        # La lógica de la tabla anual debe ser implementada aquí si es necesaria
-
-        # Generar datos de inflexión (Simulación de resultado)
-        # Este es el core del análisis de inflexión
-        
-        inflection_points = []
-        if not monthly_data.empty:
-            # Ejemplo simplificado de detección de picos/valles con scipy
-            data_to_analyze = monthly_data.values
-            
-            # Buscando picos (máximos locales)
-            peaks, _ = find_peaks(data_to_analyze, height=np.mean(data_to_analyze) + np.std(data_to_analyze) * 0.5)
-            # Buscando valles (invirtiendo la serie para encontrar mínimos)
-            valleys, _ = find_peaks(-data_to_analyze, height=-np.mean(data_to_analyze) + np.std(data_to_analyze) * 0.5)
-
-            # Convertir índices a fechas
-            dates = monthly_data.index.tolist()
-            
-            for p in peaks:
-                inflection_points.append({
-                    'date': dates[p].strftime('%Y-%m-%d'),
-                    'value': data_to_analyze[p],
-                    'type': 'Peak (Pico)'
-                })
-            for v in valleys:
-                inflection_points.append({
-                    'date': dates[v].strftime('%Y-%m-%d'),
-                    'value': data_to_analyze[v],
-                    'type': 'Valley (Valle)'
-                })
-
-        # Estructurar la respuesta
-        response = {
-            "monthly_data": [{
-                "date": date.strftime('%Y-%m-%d'), 
-                "calls_count": count
-            } for date, count in monthly_data.items()],
-            "inflection_points": inflection_points,
-            "annual_table": [], # Se debería generar la tabla anual aquí
-            "company_id": company_id
-        }
-        
-        return jsonify(response)
-
-    except Exception as e:
-        print(f"Error en /api/analysis: {e}")
-        # Error al iniciar Gunicorn/Worker. MUY COMUN en Cloud Run.
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+@app.route('/api/inflection-analysis', methods=['POST'])
+def run_inflection_analysis():
+    """Endpoint principal usado por el portal actual."""
+    return _handle_inflection_analysis_request()
 
 # 4. SERVIR ARCHIVOS ESTATICOS
 

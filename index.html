@@ -222,20 +222,27 @@
         }
 
         function drawInflectionPlot(data) {
+            const analysisMode = (data.analysis_mode || 'percentages').toLowerCase();
             const months = data.curve_data.map(d => d.month);
-            const percentages = data.curve_data.map(d => d.percentage);
-            
+            const yValues = analysisMode === 'absolute'
+                ? data.curve_data.map(d => d.calls)
+                : data.curve_data.map(d => d.percentage);
+
             const layout = createPlotlyLayout(
-                'Distribución Porcentual de Llamadas vs. Mes',
-                'Porcentaje del Total Anual (%)'
+                analysisMode === 'absolute'
+                    ? 'Volumen Mensual de Llamadas'
+                    : 'Distribución Porcentual de Llamadas vs. Mes',
+                analysisMode === 'absolute'
+                    ? 'Número de Llamadas'
+                    : 'Porcentaje del Total Anual (%)'
             );
-            
+
             const traces = [];
 
             // 1. Curva de estacionalidad (Línea principal)
             traces.push({
                 x: months,
-                y: percentages,
+                y: yValues,
                 mode: 'lines+markers',
                 type: 'scatter',
                 name: 'Tendencia Mensual',
@@ -243,42 +250,56 @@
                 marker: { size: 8 }
             });
 
-            // 2. Picos (Peaks) - Marcadores verdes
-            const peakMarkers = data.peak_months.map(m => {
-                const index = months.indexOf(m);
-                return { x: m, y: percentages[index] };
-            });
+            const peakMonths = Array.isArray(data.peak_months) ? data.peak_months : [];
+            const valleyMonths = Array.isArray(data.valley_months) ? data.valley_months : [];
 
-            traces.push({
-                x: peakMarkers.map(m => m.x),
-                y: peakMarkers.map(m => m.y),
-                mode: 'markers',
-                type: 'scatter',
-                name: 'Pico Estacional',
-                marker: { color: '#10b981', size: 12, symbol: 'triangle-up', line: { width: 1, color: 'white' } }
-            });
+            // 2. Picos (Peaks) - Marcadores verdes
+            const peakMarkers = peakMonths
+                .map(m => {
+                    const index = months.indexOf(m);
+                    return index >= 0 ? { x: m, y: yValues[index] } : null;
+                })
+                .filter(Boolean);
+
+            if (peakMarkers.length > 0) {
+                traces.push({
+                    x: peakMarkers.map(m => m.x),
+                    y: peakMarkers.map(m => m.y),
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'Pico Estacional',
+                    marker: { color: '#10b981', size: 12, symbol: 'triangle-up', line: { width: 1, color: 'white' } }
+                });
+            }
 
             // 3. Valles (Valleys) - Marcadores rojos
-            const valleyMarkers = data.valley_months.map(m => {
-                const index = months.indexOf(m);
-                return { x: m, y: percentages[index] };
-            });
+            const valleyMarkers = valleyMonths
+                .map(m => {
+                    const index = months.indexOf(m);
+                    return index >= 0 ? { x: m, y: yValues[index] } : null;
+                })
+                .filter(Boolean);
 
-            traces.push({
-                x: valleyMarkers.map(m => m.x),
-                y: valleyMarkers.map(m => m.y),
-                mode: 'markers',
-                type: 'scatter',
-                name: 'Valle Estacional',
-                marker: { color: '#ef4444', size: 12, symbol: 'triangle-down', line: { width: 1, color: 'white' } }
-            });
+            if (valleyMarkers.length > 0) {
+                traces.push({
+                    x: valleyMarkers.map(m => m.x),
+                    y: valleyMarkers.map(m => m.y),
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'Valle Estacional',
+                    marker: { color: '#ef4444', size: 12, symbol: 'triangle-down', line: { width: 1, color: 'white' } }
+                });
+            }
 
             Plotly.newPlot(plotDiv, traces, layout);
-            
+
             // Actualizar Métricas
-            document.getElementById('total-calls-metric').textContent = data.total_calls.toLocaleString('es-ES');
-            document.getElementById('peak-months-metric').textContent = data.peak_months.map(getMonthName).join(', ');
-            document.getElementById('valley-months-metric').textContent = data.valley_months.map(getMonthName).join(', ');
+            document.getElementById('total-calls-metric').textContent =
+                data.total_calls != null ? Number(data.total_calls).toLocaleString('es-ES') : '--';
+            document.getElementById('peak-months-metric').textContent =
+                peakMonths.length > 0 ? peakMonths.map(getMonthName).join(', ') : '--';
+            document.getElementById('valley-months-metric').textContent =
+                valleyMonths.length > 0 ? valleyMonths.map(getMonthName).join(', ') : '--';
         }
 
         // --- Table Rendering Functions ---
@@ -286,7 +307,8 @@
         function renderAnnualTable(annualTable, analysisMode) {
             tableBody.innerHTML = '';
             
-            const years = Object.keys(annualTable).sort((a, b) => parseInt(b) - parseInt(a));
+            const tableData = annualTable || {};
+            const years = Object.keys(tableData).sort((a, b) => parseInt(b) - parseInt(a));
             const months = Array.from({length: 12}, (_, i) => i + 1);
             const headerRow = document.querySelector('#annual-data-table thead tr');
 
@@ -320,15 +342,18 @@
                 // Columnas de Meses
                 months.forEach(m => {
                     const monthKey = String(m);
-                    const value = annualTable[year][monthKey];
+                    const yearData = tableData[year] || {};
+                    const rawValue = yearData[monthKey] ?? 0;
                     cell = row.insertCell();
                     cell.className = 'px-3 py-4 whitespace-nowrap text-center text-sm';
                     
                     if (analysisMode === 'percentages') {
-                        cell.textContent = `${value}%`;
-                        cell.classList.add(value > 10 ? 'text-green-700' : (value < 6 ? 'text-red-700' : 'text-gray-700'));
+                        const numericValue = Number(rawValue) || 0;
+                        cell.textContent = `${numericValue}%`;
+                        cell.classList.add(numericValue > 10 ? 'text-green-700' : (numericValue < 6 ? 'text-red-700' : 'text-gray-700'));
                     } else {
-                        cell.textContent = value.toLocaleString('es-ES');
+                        const numericValue = Number(rawValue) || 0;
+                        cell.textContent = numericValue.toLocaleString('es-ES');
                         cell.classList.add('text-gray-700');
                     }
                 });
@@ -349,7 +374,7 @@
             
             const url = `${API_BASE}/api/inflection-analysis`;
             const data = {
-                company_id: parseInt(companyId),
+                company_id: companyId,
                 detection_method: detectionMethod,
                 analysis_mode: analysisMode
             };
@@ -364,7 +389,7 @@
 
             if (response && !response.error) {
                 drawInflectionPlot(response);
-                renderAnnualTable(response.annual_table, analysisMode);
+                renderAnnualTable(response.annual_table, response.analysis_mode || analysisMode);
             } else {
                 // Limpiar resultados anteriores en caso de error
                 Plotly.purge(plotDiv);
