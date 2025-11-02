@@ -21,6 +21,7 @@ warnings.filterwarnings('ignore')
 # CRUCIAL: Indicamos a Flask que busque archivos estáticos (como index.html) 
 # en el directorio actual (os.path.dirname(os.path.abspath(__file__))), 
 # que es /app dentro del contenedor.
+# ESTA CORRECCIÓN SOLUCIONA EL ERROR 503 EN CLOUD RUN
 app = Flask(__name__, static_folder=os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -228,4 +229,3 @@ if __name__ == '__main__':
     # Para desarrollo local:
     # app.run(debug=True, host='0.0.0.0', port=port)
     print(f"Flask en modo local, puerto: {port}")
-    
