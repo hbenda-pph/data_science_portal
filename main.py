@@ -90,39 +90,8 @@ def get_calls_info():
         return df
         
     except Exception as e:
-        print(f"ERROR: Falló la conexión a BigQuery: {e}. Usando Mock Data.")
-        
-        # Generar Mock Data para desarrollo local o fallo de credenciales
-        np.random.seed(42)
-        mock_company_ids = ['1001', '1002', '1003']
-        mock_company_names = {
-            '1001': 'Company 1001',
-            '1002': 'Company 1002',
-            '1003': 'Company 1003'
-        }
-        years = [2022, 2023, 2024]
-        months = list(range(1, 13))
-        rows = []
-        for company_id in mock_company_ids:
-            for year in years:
-                for month in months:
-                    rows.append({
-                        'company_id': company_id,
-                        'company_name': mock_company_names[company_id],
-                        'campaigns': int(np.random.randint(5, 20)),
-                        'customers': int(np.random.randint(100, 500)),
-                        'state': 'NA',
-                        'year': year,
-                        'month': month,
-                        'calls': int(np.random.randint(50, 300))
-                    })
-        df_mock = pd.DataFrame(rows)
-        
-        # Asegurar que se almacene el mock data para evitar llamadas repetidas
-        _calls_df_cache = df_mock
-        _last_data_fetch_time = time.time()
-        
-        return df_mock
+        print(f"ERROR: Falló la conexión a BigQuery: {e}")
+        raise
 
 
 def normalize_detection_method(method):
