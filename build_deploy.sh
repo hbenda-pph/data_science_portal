@@ -1,26 +1,21 @@
 #!/bin/bash
 
-=============================================================================
-
-SCRIPT DE BUILD & DEPLOY PARA PORTAL DE DATOS (FLASK/CLOUD RUN)
-
-Multi-Environment: DEV, QUA, PRO
-
-=============================================================================
+#=============================================================================
+#SCRIPT DE BUILD & DEPLOY PARA PORTAL DE DATOS (FLASK/CLOUD RUN)
+#Multi-Environment: DEV, QUA, PRO
+#=============================================================================
 
 set -e  # Salir si hay algún error
 
-=============================================================================
+#=============================================================================
+#CONFIGURACIÓN DE AMBIENTES
+#=============================================================================
 
-CONFIGURACIÓN DE AMBIENTES
-
-=============================================================================
-
-Detectar proyecto activo de gcloud
+#Detectar proyecto activo de gcloud
 
 CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null)
 
-Verificar si se proporcionó un ambiente como parámetro
+#Verificar si se proporcionó un ambiente como parámetro
 
 if [ -n "$1" ]; then
 ENVIRONMENT="$1"
@@ -40,7 +35,7 @@ ENVIRONMENT="dev"
 fi
 fi
 
-Asignar nombres y IDs de proyecto basados en el ambiente
+#Asignar nombres y IDs de proyecto basados en el ambiente
 
 case "$ENVIRONMENT" in
 dev)
@@ -65,11 +60,9 @@ exit 1
 ;;
 esac
 
-=============================================================================
-
-PASO 1: CONFIGURAR PROYECTO Y GCR
-
-=============================================================================
+#=============================================================================
+#PASO 1: CONFIGURAR PROYECTO Y GCR
+#=============================================================================
 
 echo "🛠️ Configurando GCloud para el ambiente $ENVIRONMENT..."
 gcloud config set project "$PROJECT_ID"
@@ -78,11 +71,9 @@ ID de la imagen en Google Container Registry (GCR) o Artifact Registry
 
 IMAGE_TAG="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${ENVIRONMENT}_$(date +%Y%m%d%H%M%S)"
 
-=============================================================================
-
-PASO 2: CONSTRUIR LA IMAGEN DOCKER (BUILD)
-
-=============================================================================
+#=============================================================================
+#PASO 2: CONSTRUIR LA IMAGEN DOCKER (BUILD)
+#=============================================================================
 
 echo ""
 echo "📦 Iniciando build de la imagen Docker para $ENVIRONMENT..."
@@ -94,45 +85,30 @@ Se usa el Dockerfile en el directorio actual
 
 gcloud builds submit --tag "$IMAGE_TAG" . --timeout="30m"
 
-=============================================================================
-
-PASO 3: DESPLEGAR EN CLOUD RUN (DEPLOY)
-
-=============================================================================
+#=============================================================================
+#PASO 3: DESPLEGAR EN CLOUD RUN (DEPLOY)
+#=============================================================================
 
 echo ""
 echo "🚀 Desplegando imagen en Cloud Run..."
-gcloud run deploy "$SERVICE_NAME" 
-
---image "$IMAGE_TAG" 
-
---region "$REGION" 
-
---platform "managed" 
-
+gcloud run deploy "$SERVICE_NAME" \
+--image "${IMAGE_TAG}" \
+--region "${REGION}" \
+--platform "managed" \
 --allow-unauthenticated 
+--port 8080 \
+--memory 1Gi \
+--cpu 1 \
+--timeout 3600 \
+--project "${PROJECT_ID}" 
+--quiet    
 
---port 8080 
+#NOTA: Se usa --allow-unauthenticated para un portal público. Si se requiere autenticación,
+#cambiar a --no-allow-unauthenticated y configurar IAM.
 
---memory 1Gi 
-
---cpu 1 
-
---timeout 3600 
-
---project "$PROJECT_ID" 
-
---quiet
-
-NOTA: Se usa --allow-unauthenticated para un portal público. Si se requiere autenticación,
-
-cambiar a --no-allow-unauthenticated y configurar IAM.
-
-=============================================================================
-
-PASO 4: RESULTADOS
-
-=============================================================================
+#=============================================================================
+#PASO 4: RESULTADOS
+#=============================================================================
 
 echo ""
 echo "=================================="
