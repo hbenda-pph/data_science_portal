@@ -229,3 +229,4 @@ if __name__ == '__main__':
     # Para desarrollo local:
     # app.run(debug=True, host='0.0.0.0', port=port)
     print(f"Flask en modo local, puerto: {port}")
+    
