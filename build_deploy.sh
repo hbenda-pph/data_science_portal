@@ -1,116 +1,108 @@
 #!/bin/bash
 
-#=============================================================================
-#SCRIPT DE BUILD & DEPLOY PARA PORTAL DE DATOS (FLASK/CLOUD RUN)
-#Multi-Environment: DEV, QUA, PRO
-#=============================================================================
+# =============================================================================
+# SCRIPT DE BUILD & DEPLOY PARA DATA SCIENCE INDEX (FLASK)
+# Multi-Environment: DEV, QUA, PRO
+# =============================================================================
 
 set -e  # Salir si hay algún error
 
-#=============================================================================
-#CONFIGURACIÓN DE AMBIENTES
-#=============================================================================
+# =============================================================================
+# CONFIGURACIÓN DE AMBIENTES
+# =============================================================================
 
-#Detectar proyecto activo de gcloud
-
+# Detectar proyecto activo de gcloud
 CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null)
 
-#Verificar si se proporcionó un ambiente como parámetro
-
+# Si se proporciona parámetro, usarlo; si no, detectar automáticamente
 if [ -n "$1" ]; then
-ENVIRONMENT="$1"
-ENVIRONMENT=$(echo "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')  # Convertir a minúsculas
+    # Parámetro proporcionado explícitamente
+    ENVIRONMENT="$1"
+    ENVIRONMENT=$(echo "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')  # Convertir a minúsculas
+    
+    # Validar ambiente
+    if [[ ! "$ENVIRONMENT" =~ ^(dev|qua|pro)$ ]]; then
+        echo "❌ Error: Ambiente inválido '$ENVIRONMENT'"
+        echo "Uso: ./build_deploy.sh [dev|qua|pro]"
+        exit 1
+    fi
 else
-# Si no se proporciona ambiente, se deduce del proyecto activo (lógica heredada)
-if [[ "$CURRENT_PROJECT" == "dev" || "$CURRENT_PROJECT" == "des" ]]; then
-ENVIRONMENT="dev"
-elif [[ "$CURRENT_PROJECT" == "qua" ]]; then
-ENVIRONMENT="qua"
-elif [[ "$CURRENT_PROJECT" == "pro" ]]; then
-ENVIRONMENT="pro"
-else
-echo "⚠️ Advertencia: No se detectó ambiente (dev/qua/pro) en el nombre del proyecto activo."
-echo "Asumiendo 'dev' por defecto."
-ENVIRONMENT="dev"
-fi
+    # Detectar automáticamente según el proyecto activo
+    case "$CURRENT_PROJECT" in
+        *-des) ENVIRONMENT="dev" ;;
+        *-qua) ENVIRONMENT="qua" ;;
+        *-pro) ENVIRONMENT="pro" ;;
+        *)
+            echo "❌ Error: No se pudo determinar el ambiente a partir del proyecto activo: $CURRENT_PROJECT"
+            echo "Uso: ./build_deploy.sh [dev|qua|pro] o asegúrate de tener un proyecto activo con el sufijo -des, -qua, o -pro."
+            exit 1
+            ;;
+    esac
 fi
 
-#Asignar nombres y IDs de proyecto basados en el ambiente
+# =============================================================================
+# ASIGNACIÓN DE VARIABLES
+# =============================================================================
 
+# Define los IDs de proyecto según el ambiente. ¡Asegúrate de que sean tus IDs reales!
 case "$ENVIRONMENT" in
-dev)
-PROJECT_ID="platform-partners-des" # ID de tu proyecto DEV
-SERVICE_NAME="ds-inflection-portal-dev"
-REGION="us-central1"
-;;
-qua)
-PROJECT_ID="platform-partners-qua" # ID de tu proyecto QUA
-SERVICE_NAME="ds-inflection-portal-qua"
-REGION="us-central1"
-;;
-pro)
-PROJECT_ID="platform-partners-pro" # ID de tu proyecto PRO
-SERVICE_NAME="ds-inflection-portal-pro"
-REGION="us-central1"
-;;
-*)
-echo "❌ Error: Ambiente inválido '$ENVIRONMENT'"
-echo "Uso: ./build_deploy.sh [dev|qua|pro]"
-exit 1
-;;
+    dev)
+        PROJECT_ID="platform-partners-des" 
+        SERVICE_NAME="ds-inflection-portal-dev"
+        REGION="us-central1" # Ajusta tu región de DEV
+        ;;
+    qua)
+        PROJECT_ID="platform-partners-qua" 
+        SERVICE_NAME="ds-inflection-portal-qua"
+        REGION="us-central1" # Ajusta tu región de QUA
+        ;;
+    pro)
+        PROJECT_ID="platform-partners-pro" 
+        SERVICE_NAME="ds-inflection-portal-pro"
+        REGION="us-central1" # Ajusta tu región de PRO
+        ;;
 esac
 
-#=============================================================================
-#PASO 1: CONFIGURAR PROYECTO Y GCR
-#=============================================================================
-
-echo "🛠️ Configurando GCloud para el ambiente $ENVIRONMENT..."
-gcloud config set project "$PROJECT_ID"
-
-#ID de la imagen en Google Container Registry (GCR) o Artifact Registry
-IMAGE_TAG="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${ENVIRONMENT}_$(date +%Y%m%d%H%M%S)"
-
-#=============================================================================
-#PASO 2: CONSTRUIR LA IMAGEN DOCKER (BUILD)
-#=============================================================================
+TAG="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${ENVIRONMENT}"
 
 echo ""
-echo "📦 Iniciando build de la imagen Docker para $ENVIRONMENT..."
-echo "   TAG: $IMAGE_TAG"
-echo "   Proyecto: $PROJECT_ID"
-echo "   Servicio: $SERVICE_NAME"
-
-#Se usa el Dockerfile en el directorio actual
-gcloud builds submit --tag "$IMAGE_TAG" . --timeout="30m"
-
-#=============================================================================
-#PASO 3: DESPLEGAR EN CLOUD RUN (DEPLOY)
-#=============================================================================
-
+echo "=========================================="
+echo "🚀 INICIANDO BUILD & DEPLOY - ${ENVIRONMENT^^} ENVIRONMENT"
+echo "=========================================="
+echo "Proyecto (ID): ${PROJECT_ID}"
+echo "Servicio:      ${SERVICE_NAME}"
+echo "Región:        ${REGION}"
+echo "TAG:           ${TAG}"
+echo "=========================================="
 echo ""
-echo "🚀 Desplegando imagen en Cloud Run..."
-gcloud run deploy "$SERVICE_NAME" \
---image "${IMAGE_TAG}" \
---region "${REGION}" \
---platform "managed" \
---allow-unauthenticated 
---port 8080 \
---memory 1Gi \
---cpu 1 \
---timeout 3600 \
---project "${PROJECT_ID}" 
---quiet    
 
-#NOTA: Se usa --allow-unauthenticated para un portal público. Si se requiere autenticación,
-#cambiar a --no-allow-unauthenticated y configurar IAM.
+# 1. BUILD DEL CONTENEDOR (Cloud Build)
+echo "📦 1. Building container image..."
+gcloud builds submit --tag "${TAG}" --project "${PROJECT_ID}"
 
-#=============================================================================
-#PASO 4: RESULTADOS
-#=============================================================================
+# 2. DEPLOY A CLOUD RUN
+echo "☁️ 2. Deploying service to Cloud Run..."
+# Utilizamos la sintaxis de Bash con \ al final de la línea para evitar el error 'command not found'
+# Se utiliza '--allow-unauthenticated' para que sea accesible públicamente (ajusta si necesitas IAM)
+gcloud run deploy "${SERVICE_NAME}" \
+    --image "${TAG}" \
+    --region "${REGION}" \
+    --platform "managed" \
+    --allow-unauthenticated \
+    --project "${PROJECT_ID}" \
+    --cpu "1" \
+    --memory "512Mi" \
+    --min-instances "0" \
+    --max-instances "5" \
+    --port "8080" \
+    --quiet
 
+# =============================================================================
+# FINALIZACIÓN
+# =============================================================================
 echo ""
 echo "=================================="
-echo "✅ DEPLOY COMPLETADO EXITOSAMENTE!"
+echo "✅ DEPLOYADO EXITOSAMENTE!"
 echo "=================================="
 echo ""
 echo "🌍 AMBIENTE: ${ENVIRONMENT^^}"
@@ -119,14 +111,13 @@ echo "   Proyecto: ${PROJECT_ID}"
 echo "   Servicio: ${SERVICE_NAME}"
 echo "   Región:   ${REGION}"
 echo ""
-echo "🌐 Para ver tu aplicación (puede tardar unos segundos en ser accesible):"
-gcloud run services describe "${SERVICE_NAME}" --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)'
+echo "🌐 Para ver tu aplicación:"
+gcloud run services describe ${SERVICE_NAME} --region=${REGION} --project=${PROJECT_ID} --format='value(status.url)'
 echo ""
 echo "🔧 Para ver logs en tiempo real:"
 echo "   gcloud run services logs read ${SERVICE_NAME} --region=${REGION} --project=${PROJECT_ID} --tail"
 echo ""
 echo "🔄 Para deploy en otros ambientes:"
-echo "   ./build_deploy.sh dev    # Deploy en DEV"
-echo "   ./build_deploy.sh qua    # Deploy en QUA"
-echo "   ./build_deploy.sh pro    # Deploy en PRO"
+echo "   ./build_deploy.sh qua    # Deploy en QUA (validación y QA)"
+echo "   ./build_deploy.sh pro    # Deploy en PRO (producción)"
 echo ""
