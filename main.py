@@ -105,8 +105,15 @@ def get_companies():
         if df.empty:
             return jsonify({"error": "No data available"}), 500
             
-        company_ids = df['company_id'].unique().tolist()
-        return jsonify({"companies": company_ids})
+        company_ids = sorted(df['company_id'].unique().tolist())
+        companies = [
+            {
+                "company_id": company_id,
+                "company_name": company_id
+            }
+            for company_id in company_ids
+        ]
+        return jsonify({"companies": companies})
         
     except Exception as e:
         print(f"Error en /api/companies: {e}")
