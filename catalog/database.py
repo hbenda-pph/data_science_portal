@@ -34,21 +34,21 @@ class WorksDatabase:
     # ------------------------------------------------------------------
 
     def fetch_all_works(self) -> pd.DataFrame:
-        query = f"
+        query = f"""
         SELECT *
         FROM `{self.table_index}`
         WHERE status = 'active'
         ORDER BY category, created_date DESC
-        "
+        """
         return self.client.query(query).to_dataframe()
 
     def fetch_categories(self) -> pd.DataFrame:
-        query = f"
+        query = f"""
         SELECT category_id, category_name, category_icon, description, display_order
         FROM `{self.table_categories}`
         WHERE is_active = true
         ORDER BY display_order, category_name
-        "
+        """
         return self.client.query(query).to_dataframe()
 
 
