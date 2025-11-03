@@ -54,6 +54,7 @@ def get_calls_info():
         # Intenta usar las credenciales de Cloud Run/Compute Engine
         client = bigquery.Client()
 
+        # Registrar información básica de credenciales para debugging
         try:
             default_credentials, default_project = google.auth.default()
             service_account_email = getattr(default_credentials, 'service_account_email', 'unknown')
