@@ -3,413 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal de Datos - Análisis de Inflexión</title>
-    <!-- Carga de Tailwind CSS para el diseño -->
+    <title>Portal de Datos y Análisis (GCloud Ready)</title>
+    <!-- Carga de Tailwind CSS para un diseño moderno y responsivo -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Carga de Plotly.js para gráficos interactivos -->
-    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
-    <!-- Fuente Inter de Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f7f9fc; }
-        .card { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06); }
-        .loader-overlay { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(2px); z-index: 100; }
-        .spinner { border-top-color: #3b82f6; animation: spin 1s ease-in-out infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body class="min-h-screen">
-
-    <!-- Navbar -->
-    <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <span class="text-2xl font-bold text-indigo-700">Analytics Portal</span>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="#" class="text-gray-600 hover:text-indigo-700 px-3 py-2 rounded-md text-sm font-medium">Home</a>
-                    <a href="#" class="text-gray-600 hover:text-indigo-700 px-3 py-2 rounded-md text-sm font-medium">Datasets</a>
-                    <a href="#" class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-2 rounded-md text-sm font-medium">Inflection Analysis</a>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Loader Overlay -->
-    <div id="loader" class="fixed inset-0 flex items-center justify-center loader-overlay hidden">
-        <div class="flex flex-col items-center p-6 bg-white rounded-lg card">
-            <div class="spinner w-8 h-8 border-4 rounded-full border-gray-200"></div>
-            <p class="mt-3 text-gray-700 font-medium">Cargando datos de BigQuery...</p>
-        </div>
-    </div>
-
-    <!-- Main Content Area -->
-    <main class="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
-        
-        <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-3xl font-extrabold text-gray-900">Análisis de Puntos de Inflexión de Llamadas</h1>
-            <p class="mt-2 text-lg text-gray-500">Identificación de picos y valles estacionales en el volumen de llamadas de ServiceTitan para optimización de recursos.</p>
-        </div>
-
-        <!-- Control Panel -->
-        <div class="bg-white card p-6 rounded-xl mb-8 border border-gray-200">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Configuración de Análisis</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                <!-- Selector de Compañía -->
-                <div>
-                    <label for="company-select" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Compañía</label>
-                    <select id="company-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg shadow-sm">
-                        <option value="">Cargando Compañías...</option>
-                    </select>
-                </div>
-
-                <!-- Selector de Método de Detección -->
-                <div>
-                    <label for="method-select" class="block text-sm font-medium text-gray-700 mb-1">Método de Detección</label>
-                    <select id="method-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg shadow-sm">
-                        <option value="Hybrid (3-4 months)">Híbrido (Distancia Mínima 3 meses)</option>
-                        <option value="Mathematical Strict">Estricto Matemático (Top 2)</option>
-                        <option value="Original (find_peaks)">Original (SciPy find_peaks)</option>
-                    </select>
-                </div>
-
-                <!-- Selector de Modo de Análisis -->
-                <div>
-                    <label for="mode-select" class="block text-sm font-medium text-gray-700 mb-1">Datos en Tabla</label>
-                    <select id="mode-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg shadow-sm">
-                        <option value="percentages">Porcentajes Mensuales</option>
-                        <option value="absolute">Volumen Absoluto de Llamadas</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <!-- Results Area -->
-        <div id="results-container" class="space-y-8">
-            
-            <!-- Analysis Summary -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Total Calls Card -->
-                <div class="bg-white card p-6 rounded-xl border-l-4 border-indigo-500">
-                    <p class="text-sm font-medium text-gray-500">Total de Llamadas Históricas</p>
-                    <p id="total-calls-metric" class="mt-1 text-3xl font-bold text-gray-900">--</p>
-                </div>
-                <!-- Peak Months Card -->
-                <div class="bg-white card p-6 rounded-xl border-l-4 border-green-500">
-                    <p class="text-sm font-medium text-gray-500">Meses Pico (Sugeridos)</p>
-                    <p id="peak-months-metric" class="mt-1 text-3xl font-bold text-green-700">--</p>
-                </div>
-                <!-- Valley Months Card -->
-                <div class="bg-white card p-6 rounded-xl border-l-4 border-red-500">
-                    <p class="text-sm font-medium text-gray-500">Meses Valle (Sugeridos)</p>
-                    <p id="valley-months-metric" class="mt-1 text-3xl font-bold text-red-700">--</p>
-                </div>
-            </div>
-
-            <!-- Plotly Graph -->
-            <div class="bg-white card p-6 rounded-xl">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Curva de Estacionalidad Mensual</h2>
-                <div id="inflection-plot" class="w-full h-96">
-                    <p class="text-gray-500 text-center py-10">Seleccione una compañía para ejecutar el análisis.</p>
-                </div>
-            </div>
-
-            <!-- Annual Data Table -->
-            <div class="bg-white card p-6 rounded-xl">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Detalle Anual de Datos</h2>
-                <div class="overflow-x-auto">
-                    <table id="annual-data-table" class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Año</th>
-                                <!-- Meses se insertan aquí por JS -->
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <!-- Filas se insertan aquí por JS -->
-                            <tr><td colspan="13" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No hay datos para mostrar.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Footer for padding -->
-        <div class="h-16"></div>
-
-    </main>
-
     <script>
-        const API_BASE = window.location.origin;
-        const loader = document.getElementById('loader');
-        const companySelect = document.getElementById('company-select');
-        const methodSelect = document.getElementById('method-select');
-        const modeSelect = document.getElementById('mode-select');
-        const plotDiv = document.getElementById('inflection-plot');
-        const tableBody = document.querySelector('#annual-data-table tbody');
-        const tableHeadRow = document.querySelector('#annual-data-table thead tr');
-
-        // --- Helper Functions ---
-
-        function showLoader() { loader.classList.remove('hidden'); }
-        function hideLoader() { loader.classList.add('hidden'); }
-
-        async function safeFetch(url, options = {}) {
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return await response.json();
-            } catch (error) {
-                console.error("Fetch Error:", error);
-                hideLoader();
-                alert(`Error al conectar con el servidor: ${error.message}. Asegúrate de que el backend (main.py) esté corriendo.`);
-                return null;
+        // Configuración de Tailwind para un tema visual profesional (Inter font)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'gcloud-blue': '#1a73e8',
+                        'dark-bg': '#1e293b',
+                        'card-bg': '#334155',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
             }
         }
 
-        // --- Data Fetching and Initialization ---
+        const activeLinkClasses = ['bg-gray-100', 'dark:bg-slate-700', 'text-gcloud-blue'];
+        const inactiveLinkClasses = ['text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-100', 'dark:hover:bg-slate-700'];
 
-        async function fetchCompanies() {
-            showLoader();
-            const data = await safeFetch(`${API_BASE}/api/companies`);
-            
-            companySelect.innerHTML = '';
-            if (data && data.companies.length > 0) {
-                const defaultOption = document.createElement('option');
-                defaultOption.value = "";
-                defaultOption.textContent = "Selecciona una compañía...";
-                defaultOption.disabled = true;
-                defaultOption.selected = true;
-                companySelect.appendChild(defaultOption);
+        let appsCatalog = [];
+        let categoryCounts = {};
+        let activeCategory = 'Todos';
 
-                data.companies.forEach(company => {
-                    const option = document.createElement('option');
-                    option.value = company.company_id;
-                    option.textContent = company.company_name;
-                    companySelect.appendChild(option);
-                });
-                companySelect.disabled = false;
-            } else {
-                companySelect.innerHTML = '<option value="">No se encontraron compañías.</option>';
-                companySelect.disabled = true;
-            }
-            hideLoader();
-        }
+        document.addEventListener('DOMContentLoaded', () => {
+            initThemeToggle();
+            initPortal();
+        });
 
-        // --- Plotting Functions ---
+        function initThemeToggle() {
+            const toggle = document.getElementById('dark-mode-toggle');
+            const root = document.documentElement;
 
-        function getMonthName(monthNumber) {
-            const date = new Date();
-            date.setMonth(monthNumber - 1);
-            return date.toLocaleString('es-ES', { month: 'short' });
-        }
-
-        function createPlotlyLayout(title, yTitle) {
-            return {
-                title: title,
-                xaxis: { title: 'Mes del Año', tickvals: Array.from({length: 12}, (_, i) => i + 1), ticktext: Array.from({length: 12}, (_, i) => getMonthName(i + 1)) },
-                yaxis: { title: yTitle, rangemode: 'tozero' },
-                hovermode: 'x unified',
-                responsive: true,
-                margin: { t: 50, b: 50, l: 50, r: 20 }
-            };
-        }
-
-        function drawInflectionPlot(data) {
-            const analysisMode = (data.analysis_mode || 'percentages').toLowerCase();
-            const months = data.curve_data.map(d => d.month);
-            const yValues = analysisMode === 'absolute'
-                ? data.curve_data.map(d => d.calls)
-                : data.curve_data.map(d => d.percentage);
-
-            const layout = createPlotlyLayout(
-                analysisMode === 'absolute'
-                    ? 'Volumen Mensual de Llamadas'
-                    : 'Distribución Porcentual de Llamadas vs. Mes',
-                analysisMode === 'absolute'
-                    ? 'Número de Llamadas'
-                    : 'Porcentaje del Total Anual (%)'
-            );
-
-            const traces = [];
-
-            // 1. Curva de estacionalidad (Línea principal)
-            traces.push({
-                x: months,
-                y: yValues,
-                mode: 'lines+markers',
-                type: 'scatter',
-                name: 'Tendencia Mensual',
-                line: { shape: 'spline', smoothing: 1.3, color: '#3b82f6', width: 4 },
-                marker: { size: 8 }
-            });
-
-            const peakMonths = Array.isArray(data.peak_months) ? data.peak_months : [];
-            const valleyMonths = Array.isArray(data.valley_months) ? data.valley_months : [];
-
-            // 2. Picos (Peaks) - Marcadores verdes
-            const peakMarkers = peakMonths
-                .map(m => {
-                    const index = months.indexOf(m);
-                    return index >= 0 ? { x: m, y: yValues[index] } : null;
-                })
-                .filter(Boolean);
-
-            if (peakMarkers.length > 0) {
-                traces.push({
-                    x: peakMarkers.map(m => m.x),
-                    y: peakMarkers.map(m => m.y),
-                    mode: 'markers',
-                    type: 'scatter',
-                    name: 'Pico Estacional',
-                    marker: { color: '#10b981', size: 12, symbol: 'triangle-up', line: { width: 1, color: 'white' } }
-                });
-            }
-
-            // 3. Valles (Valleys) - Marcadores rojos
-            const valleyMarkers = valleyMonths
-                .map(m => {
-                    const index = months.indexOf(m);
-                    return index >= 0 ? { x: m, y: yValues[index] } : null;
-                })
-                .filter(Boolean);
-
-            if (valleyMarkers.length > 0) {
-                traces.push({
-                    x: valleyMarkers.map(m => m.x),
-                    y: valleyMarkers.map(m => m.y),
-                    mode: 'markers',
-                    type: 'scatter',
-                    name: 'Valle Estacional',
-                    marker: { color: '#ef4444', size: 12, symbol: 'triangle-down', line: { width: 1, color: 'white' } }
-                });
-            }
-
-            Plotly.newPlot(plotDiv, traces, layout);
-
-            // Actualizar Métricas
-            document.getElementById('total-calls-metric').textContent =
-                data.total_calls != null ? Number(data.total_calls).toLocaleString('es-ES') : '--';
-            document.getElementById('peak-months-metric').textContent =
-                peakMonths.length > 0 ? peakMonths.map(getMonthName).join(', ') : '--';
-            document.getElementById('valley-months-metric').textContent =
-                valleyMonths.length > 0 ? valleyMonths.map(getMonthName).join(', ') : '--';
-        }
-
-        // --- Table Rendering Functions ---
-
-        function renderAnnualTable(annualTable, analysisMode) {
-            tableBody.innerHTML = '';
-            
-            const tableData = annualTable || {};
-            const years = Object.keys(tableData).sort((a, b) => parseInt(b) - parseInt(a));
-            const months = Array.from({length: 12}, (_, i) => i + 1);
-            const headerRow = document.querySelector('#annual-data-table thead tr');
-
-            // 1. Regenerar encabezados de meses
-            headerRow.innerHTML = '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Año</th>';
-            months.forEach(m => {
-                const monthName = getMonthName(m);
-                const th = document.createElement('th');
-                th.className = 'px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider';
-                th.textContent = monthName;
-                headerRow.appendChild(th);
-            });
-
-            // 2. Insertar filas de datos
-            if (years.length === 0) {
-                const row = tableBody.insertRow();
-                const cell = row.insertCell();
-                cell.colSpan = 13;
-                cell.className = "px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500";
-                cell.textContent = "No hay datos anuales para mostrar.";
+            if (!toggle) {
                 return;
             }
 
-            years.forEach(year => {
-                const row = tableBody.insertRow();
-                // Columna de Año
-                let cell = row.insertCell();
-                cell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50';
-                cell.textContent = year;
-
-                // Columnas de Meses
-                months.forEach(m => {
-                    const monthKey = String(m);
-                    const yearData = tableData[year] || {};
-                    const rawValue = yearData[monthKey] ?? 0;
-                    cell = row.insertCell();
-                    cell.className = 'px-3 py-4 whitespace-nowrap text-center text-sm';
-                    
-                    if (analysisMode === 'percentages') {
-                        const numericValue = Number(rawValue) || 0;
-                        cell.textContent = `${numericValue}%`;
-                        cell.classList.add(numericValue > 10 ? 'text-green-700' : (numericValue < 6 ? 'text-red-700' : 'text-gray-700'));
-                    } else {
-                        const numericValue = Number(rawValue) || 0;
-                        cell.textContent = numericValue.toLocaleString('es-ES');
-                        cell.classList.add('text-gray-700');
-                    }
-                });
-            });
-        }
-
-
-        // --- Main Execution Logic ---
-
-        async function runAnalysis() {
-            const companyId = companySelect.value;
-            const detectionMethod = methodSelect.value;
-            const analysisMode = modeSelect.value;
-            
-            if (!companyId) return;
-
-            showLoader();
-            
-            const url = `${API_BASE}/api/inflection-analysis`;
-            const data = {
-                company_id: companyId,
-                detection_method: detectionMethod,
-                analysis_mode: analysisMode
-            };
-
-            const response = await safeFetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-
-            hideLoader();
-
-            if (response && !response.error) {
-                drawInflectionPlot(response);
-                renderAnnualTable(response.annual_table, response.analysis_mode || analysisMode);
-            } else {
-                // Limpiar resultados anteriores en caso de error
-                Plotly.purge(plotDiv);
-                plotDiv.innerHTML = '<p class="text-red-500 text-center py-10">Error al ejecutar el análisis. Consulte la consola del servidor.</p>';
-                tableBody.innerHTML = '<tr><td colspan="13" class="px-6 py-4 whitespace-nowrap text-center text-sm text-red-500">Error al cargar la data anual.</td></tr>';
+            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                root.classList.add('dark');
             }
+
+            toggle.addEventListener('click', () => {
+                root.classList.toggle('dark');
+                if (root.classList.contains('dark')) {
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    localStorage.setItem('theme', 'light');
+                }
+            });
         }
 
-        // --- Event Listeners ---
-        
-        // Ejecutar el análisis cada vez que cambie cualquier selector
-        companySelect.addEventListener('change', runAnalysis);
-        methodSelect.addEventListener('change', runAnalysis);
-        modeSelect.addEventListener('change', runAnalysis);
+        async function initPortal() {
+            const contentArea = document.getElementById('content-area');
+            const navContainer = document.getElementById('sidebar-nav');
 
-        // Inicializar la carga de compañías al cargar la página
-        window.onload = () => {
-            fetchCompanies();
-        };
+            if (!contentArea || !navContainer) {
+                return;
+            }
 
+            contentArea.innerHTML = `
+                <div class="flex items-center justify-center py-16 text-gray-500 dark:text-gray-400">
+                    <span class="animate-pulse">Cargando catálogo...</span>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/apps');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const payload = await response.json();
+                appsCatalog = Array.isArray(payload.apps) ? payload.apps : [];
+            } catch (error) {
+                console.error('Error cargando catálogo:', error);
+                contentArea.innerHTML = `
+                    <div class="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-200 p-6 rounded-xl border border-red-200 dark:border-red-800">
+                        <h2 class="text-lg font-semibold mb-2">No se pudo cargar el catálogo</h2>
+                        <p class="text-sm">Verifica que el endpoint <code class="font-mono">/api/apps</code> esté disponible o revisa los logs del servicio Flask.</p>
+                    </div>
+                `;
+                navContainer.innerHTML = '';
+                return;
+            }
+
+            categoryCounts = computeCategoryCounts(appsCatalog);
+            const categories = buildCategoryList(appsCatalog);
+
+            renderSidebar(navContainer, categories);
+            activeCategory = categories[0] || 'Todos';
+            setActiveLink(activeCategory);
+            loadContent(activeCategory);
+        }
+
+        function computeCategoryCounts(catalog) {
+            const counts = {};
+            catalog.forEach(app => {
+                const category = (app.category || 'Otros').trim() || 'Otros';
+                counts[category] = (counts[category] || 0) + 1;
+            });
+            return counts;
+        }
+
+        function buildCategoryList(catalog) {
+            const unique = new Set(['Todos']);
+            catalog.forEach(app => {
+                const category = (app.category || 'Otros').trim() || 'Otros';
+                unique.add(category);
+            });
+            return Array.from(unique);
+        }
+
+        function renderSidebar(container, categories) {
+            container.innerHTML = '';
+            categories.forEach((category, index) => {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.dataset.category = category;
+                link.classList.add('sidebar-link', 'flex', 'items-center', 'p-3', 'rounded-lg', 'text-sm', 'font-medium', 'transition', 'duration-150');
+
+                if (index === 0) {
+                    addActiveClasses(link);
+                } else {
+                    addInactiveClasses(link);
+                }
+
+                const count = category === 'Todos' ? appsCatalog.length : (categoryCounts[category] || 0);
+
+                link.innerHTML = `
+                    ${getCategoryIcon(category)}
+                    <span class="flex-1">${category === 'Todos' ? 'Todos los proyectos' : category}</span>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">${count}</span>
+                `;
+
+                link.addEventListener('click', handleCategoryClick);
+                container.appendChild(link);
+            });
+        }
+
+        function handleCategoryClick(event) {
+            event.preventDefault();
+            const category = event.currentTarget.dataset.category;
+            if (!category || category === activeCategory) {
+                return;
+            }
+            activeCategory = category;
+            setActiveLink(category);
+            loadContent(category);
+        }
+
+        function setActiveLink(category) {
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                const isActive = link.dataset.category === category;
+                link.classList.remove(...activeLinkClasses, ...inactiveLinkClasses);
+                if (isActive) {
+                    addActiveClasses(link);
+                } else {
+                    addInactiveClasses(link);
+                }
+            });
+        }
+
+        function addActiveClasses(element) {
+            element.classList.add(...activeLinkClasses);
+        }
+
+        function addInactiveClasses(element) {
+            element.classList.add(...inactiveLinkClasses);
+        }
+
+        function loadContent(category) {
+            const contentArea = document.getElementById('content-area');
+            if (!contentArea) {
+                return;
+            }
+
+            if (!appsCatalog.length) {
+                contentArea.innerHTML = `
+                    <div class="bg-white dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl p-10 text-center">
+                        <h2 class="text-lg font-semibold mb-2">Aún no hay proyectos registrados</h2>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Agrega entradas en <code class="font-mono text-gcloud-blue">apps_catalog.json</code> para comenzar.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const filtered = category === 'Todos'
+                ? appsCatalog
+                : appsCatalog.filter(app => {
+                    const cat = (app.category || 'Otros').trim() || 'Otros';
+                    return cat === category;
+                });
+
+            if (!filtered.length) {
+                contentArea.innerHTML = `
+                    <div class="bg-white dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl p-10 text-center">
+                        <h2 class="text-lg font-semibold mb-2">Sin proyectos en esta categoría</h2>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Pronto habrá aplicaciones para "${category}".</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const cardsHtml = filtered.map(renderAppCard).join('');
+            const title = category === 'Todos' ? 'Todos los proyectos' : category;
+            const countLabel = filtered.length === 1 ? '1 proyecto' : `${filtered.length} proyectos`;
+
+            contentArea.innerHTML = `
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">${title}</h2>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">${countLabel}</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    ${cardsHtml}
+                </div>
+            `;
+        }
+
+        function renderAppCard(app) {
+            const title = app.title || app.id || 'Proyecto sin título';
+            const summary = app.summary || 'Descripción pendiente.';
+            const category = app.category || 'Otros';
+            const owner = app.owner || 'Equipo de Data Science';
+            const lastUpdate = app.last_update || 'Sin fecha';
+            const statusPill = renderStatusPill(app.status);
+            const stackSection = renderStackChips(app.stack);
+            const tagsSection = renderTags(app.tags);
+            const envSection = renderEnvironmentChips(app.environments);
+            const actionButton = renderPrimaryLink(app);
+
+            return `
+                <article class="data-card bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 hover:shadow-xl transition duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">${category}</span>
+                        ${statusPill}
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">${title}</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">${summary}</p>
+                    ${stackSection ? `<div class="flex flex-wrap gap-2 mb-3">${stackSection}</div>` : ''}
+                    ${tagsSection ? `<div class="flex flex-wrap gap-2 mb-3">${tagsSection}</div>` : ''}
+                    <div class="mt-6 flex flex-col gap-4 text-sm">
+                        <div class="text-gray-600 dark:text-gray-400">
+                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Owner:</span> ${owner}</p>
+                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Actualización:</span> ${lastUpdate}</p>
+                        </div>
+                        ${envSection}
+                        ${actionButton}
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderStatusPill(status) {
+            const label = status || 'En progreso';
+            const normalized = label.toLowerCase();
+            let classes = 'bg-amber-100 text-amber-700';
+            if (normalized.includes('activo') || normalized.includes('productivo')) {
+                classes = 'bg-emerald-100 text-emerald-700';
+            } else if (normalized.includes('pausado') || normalized.includes('mantenimiento')) {
+                classes = 'bg-slate-200 text-slate-600';
+            } else if (normalized.includes('pendiente')) {
+                classes = 'bg-blue-100 text-blue-700';
+            }
+            return `<span class="px-2.5 py-1 rounded-full text-xs font-semibold ${classes}">${label}</span>`;
+        }
+
+        function renderStackChips(stack) {
+            if (!Array.isArray(stack) || stack.length === 0) {
+                return '';
+            }
+            return stack
+                .map(item => `<span class="px-2 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 dark:text-slate-200 text-slate-700 rounded-md">${item}</span>`)
+                .join('');
+        }
+
+        function renderTags(tags) {
+            if (!Array.isArray(tags) || tags.length === 0) {
+                return '';
+            }
+            return tags
+                .map(tag => `<span class="px-2 py-1 text-xs font-medium bg-gcloud-blue/10 text-gcloud-blue dark:bg-blue-500/20 dark:text-blue-200 rounded-md">${tag}</span>`)
+                .join('');
+        }
+
+        function renderEnvironmentChips(environments) {
+            if (!environments || typeof environments !== 'object') {
+                return '';
+            }
+            const chips = Object.entries(environments).map(([key, value]) => {
+                const label = (value && value.label) || key.toUpperCase();
+                const url = value && value.url;
+                if (url) {
+                    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 text-xs font-semibold rounded-full border border-gcloud-blue text-gcloud-blue hover:bg-gcloud-blue hover:text-white transition" title="Abrir ${label}">${label}</a>`;
+                }
+                return `<span class="px-3 py-1 text-xs font-semibold rounded-full border border-gray-300 text-gray-400 cursor-not-allowed opacity-60" title="URL pendiente">${label}</span>`;
+            });
+            if (!chips.length) {
+                return '';
+            }
+            return `<div class="flex flex-wrap gap-2 justify-start sm:justify-end">${chips.join('')}</div>`;
+        }
+
+        function renderPrimaryLink(app) {
+            const primary = resolvePrimaryUrl(app);
+            if (!primary) {
+                return '';
+            }
+            return `
+                <div>
+                    <a href="${primary.url}" target="_blank" rel="noopener noreferrer"
+                       class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-gcloud-blue text-white hover:bg-blue-600 transition">
+                        ${primary.label}
+                    </a>
+                </div>
+            `;
+        }
+
+        function resolvePrimaryUrl(app) {
+            if (app.primary_url) {
+                return { label: '🚀 Abrir', url: app.primary_url };
+            }
+            if (app.environments && typeof app.environments === 'object') {
+                for (const key of ['pro', 'qua', 'dev']) {
+                    const env = app.environments[key];
+                    if (env && env.url) {
+                        return { label: `🚀 ${env.label}`, url: env.url };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function getCategoryIcon(category) {
+            const baseClass = 'h-5 w-5 mr-3 text-gray-500 dark:text-gray-400';
+            const normalized = category.toLowerCase();
+            if (category === 'Todos') {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M6 3a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3V6a3 3 0 00-3-3H6zM6 11a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3v-1a3 3 0 00-3-3H6zM12 3a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3V6a3 3 0 00-3-3h-1zM12 11a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3v-1a3 3 0 00-3-3h-1z"/></svg>`;
+            }
+            if (normalized.includes('dataset')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 012-2h8a2 2 0 012 2v3a2 2 0 01-2 2H6a2 2 0 01-2-2V3zm2 8a2 2 0 00-2 2v3a2 2 0 002 2h8a2 2 0 002-2v-3a2 2 0 00-2-2H6z" clip-rule="evenodd"/></svg>`;
+            }
+            if (normalized.includes('notebook')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 012-2h6.5a2 2 0 011.414.586l1.5 1.5A2 2 0 0116 5.914V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/><path d="M8 11h4a1 1 0 010 2H8a1 1 0 110-2zM8 7h4a1 1 0 010 2H8a1 1 0 110-2z"/></svg>`;
+            }
+            if (normalized.includes('modelo')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M11 17a1 1 0 001-1v-2.586l2.293 2.293a1 1 0 001.414-1.414L13.414 12H16a1 1 0 100-2h-2.586l2.293-2.293a1 1 0 10-1.414-1.414L11 8.586V6a1 1 0 10-2 0v2.586L6.707 6.293A1 1 0 105.293 7.707L7.586 10H5a1 1 0 100 2h2.586l-2.293 2.293a1 1 0 001.414 1.414L9 13.414V16a1 1 0 001 1z"/></svg>`;
+            }
+            if (normalized.includes('portal')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-4a4 4 0 100-8 4 4 0 000 8z" clip-rule="evenodd"/></svg>`;
+            }
+            return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M10.553 2.553a1 1 0 00-1.106 0l-6 4A1 1 0 003 7.382V15a2 2 0 001 1h10a2 2 0 002-2V7.382a1 1 0 00-.447-.829l-6-4z"/></svg>`;
+        }
     </script>
+    <style>
+        /* Estilo base para la fuente Inter y transiciones */
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s; }
+        .data-card { transition: transform 0.3s, box-shadow 0.3s; }
+        .data-card:hover { transform: translateY(-3px); box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.1), 0 5px 10px -5px rgba(0, 0, 0, 0.04); }
+
+        /* Estilos de modo oscuro */
+        .dark {
+            background-color: #0f172a; /* Fondo muy oscuro */
+            color: #e2e8f0; /* Texto claro */
+        }
+        .dark .bg-white { background-color: #1e293b !important; }
+        .dark .text-gray-600 { color: #94a3b8 !important; }
+        .dark .text-gray-900 { color: #f1f5f9 !important; }
+        .dark .bg-gray-50 { background-color: #0f172a !important; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
+
+    <!-- BARRA DE NAVEGACIÓN SUPERIOR (HEADER) -->
+    <header class="bg-white dark:bg-slate-800 shadow-md sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <!-- Logo/Título del Portal -->
+            <div class="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gcloud-blue mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414 1.414l.707.707a1 1 0 001.414-1.414l-.707-.707zM18 10a1 1 0 00-1-1h-1a1 1 0 100 2h1a1 1 0 001-1zM15.657 14.243l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zM11 17a1 1 0 10-2 0v1a1 1 0 102 0v-1zM4.343 14.243a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM3 10a1 1 0 00-1-1H1a1 1 0 100 2h1a1 1 0 001-1zM4.343 5.757l-.707-.707a1 1 0 00-1.414 1.414l.707.707a1 1 0 001.414-1.414z" />
+                </svg>
+                <span class="text-2xl font-extrabold text-gray-900 dark:text-white">BIGQUERY PORTAL</span>
+            </div>
+            
+            <!-- Barra de Búsqueda y Acciones -->
+            <div class="flex items-center space-x-4">
+                <!-- Barra de Búsqueda (Oculta en móviles, visible en md+) -->
+                <div class="hidden md:block relative">
+                    <input type="text" placeholder="Buscar datasets, notebooks o autores..." class="w-80 p-2 pl-10 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-gcloud-blue focus:border-gcloud-blue dark:bg-slate-700 dark:text-white transition duration-150" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                </div>
+                
+                <!-- Toggle de Modo Oscuro -->
+                <button id="dark-mode-toggle" class="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition duration-150" aria-label="Cambiar Tema">
+                    <!-- Icono de Sol / Luna -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 sun-icon dark:hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.332 2.766a1 1 0 01.32-.21l.71-.237a1 1 0 11.66 1.986l-.71.237a1 1 0 01-.32.21 1 1 0 01-1.076-.214l-.707-.707a1 1 0 01.707-1.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4.332 14.766a1 1 0 01.32-.21l-.71-.237a1 1 0 11.66-1.986l.71.237a1 1 0 01-.32.21 1 1 0 01-1.076.214l-.707.707a1 1 0 01.707 1.707zM10 16a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.757 14.243a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707zM10 14a4 4 0 100-8 4 4 0 000 8z" clip-rule="evenodd" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden moon-icon dark:block" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 17.293a1 1 0 01-1.414 0L10 11.414l-5.879 5.879a1 1 0 01-1.414-1.414L8.586 10 2.707 4.121a1 1 0 111.414-1.414L10 8.586l5.879-5.879a1 1 0 111.414 1.414L11.414 10l5.879 5.879a1 1 0 010 1.414z" /></svg>
+                </button>
+                
+                <!-- Perfil de Usuario -->
+                <button class="flex items-center space-x-2 text-gray-800 dark:text-white hover:text-gcloud-blue dark:hover:text-blue-400 transition duration-150">
+                    <div class="h-8 w-8 bg-gcloud-blue rounded-full flex items-center justify-center text-white text-sm font-semibold">AR</div>
+                    <span class="hidden sm:block text-sm font-medium">Arquitecto</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL Y LAYOUT DE DOS COLUMNAS -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col md:flex-row gap-8">
+            
+            <!-- BARRA LATERAL (SIDEBAR) - NAVEGACIÓN Y FILTROS -->
+            <aside class="md:w-64 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 md:sticky md:top-20 h-fit">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b pb-2 dark:border-slate-700">Categorías</h3>
+                <nav id="sidebar-nav" class="space-y-2"></nav>
+                
+                <div class="mt-8 pt-4 border-t dark:border-slate-700">
+                    <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase">Herramientas GCloud</h3>
+                    <ul class="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                        <li><a href="#" class="hover:text-gcloud-blue transition duration-150">Cloud Run Services</a></li>
+                        <li><a href="#" class="hover:text-gcloud-blue transition duration-150">BigQuery Console</a></li>
+                        <li><a href="#" class="hover:text-gcloud-blue transition duration-150">Vertex AI Workbench</a></li>
+                    </ul>
+                </div>
+            </aside>
+
+            <!-- ÁREA DE CONTENIDO PRINCIPAL (TARJETAS DE DATOS/ARTÍCULOS) -->
+            <section class="flex-1 min-w-0" id="content-area">
+                <!-- El contenido se inyectará aquí mediante JavaScript -->
+            </section>
+        </div>
+    </main>
 </body>
 </html>
