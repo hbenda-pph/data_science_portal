@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
 from google.cloud import bigquery
+import google.auth
 import warnings
 import time
 import os # Importar os para la ruta de la aplicación
@@ -52,6 +53,13 @@ def get_calls_info():
     try:
         # Intenta usar las credenciales de Cloud Run/Compute Engine
         client = bigquery.Client()
+
+        try:
+            default_credentials, default_project = google.auth.default()
+            service_account_email = getattr(default_credentials, 'service_account_email', 'unknown')
+            print(f"INFO: BigQuery client initialized. client.project={client.project}, default_project={default_project}, service_account={service_account_email}")
+        except Exception as cred_info_error:
+            print(f"WARN: No se pudo obtener información de credenciales: {cred_info_error}")
         
         # Consulta SQL tomada del dashboard original (Streamlit)
         query = """
