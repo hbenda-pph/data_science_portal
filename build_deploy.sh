@@ -48,19 +48,19 @@ fi
 case "$ENVIRONMENT" in
     dev)
         PROJECT_ID="platform-partners-des" 
-        SERVICE_NAME="ds-inflection-portal-dev"
+        SERVICE_NAME="data-science-portal-dev"
         SERVICE_ACCOUNT="streamlit-bigquery-sa@platform-partners-des.iam.gserviceaccount.com"
         REGION="us-east1" # Ajusta tu región de DEV
         ;;
     qua)
         PROJECT_ID="platform-partners-qua" 
-        SERVICE_NAME="ds-inflection-portal-qua"
+        SERVICE_NAME="data-science-portal-qua"
         SERVICE_ACCOUNT="streamlit-bigquery-sa@platform-partners-qua.iam.gserviceaccount.com"
         REGION="us-east1" # Ajusta tu región de QUA
         ;;
     pro)
         PROJECT_ID="platform-partners-pro" 
-        SERVICE_NAME="ds-inflection-portal-pro"
+        SERVICE_NAME="data-science-portal-pro"
         SERVICE_ACCOUNT="streamlit-bigquery-sa@platform-partners-pro.iam.gserviceaccount.com"
         REGION="us-east1" # Ajusta tu región de PRO
         ;;

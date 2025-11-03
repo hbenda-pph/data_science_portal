@@ -23,27 +23,11 @@
             }
         }
 
-        const activeLinkClasses = ['bg-gray-100', 'dark:bg-slate-700', 'text-gcloud-blue'];
-        const inactiveLinkClasses = ['text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-100', 'dark:hover:bg-slate-700'];
-
-        let appsCatalog = [];
-        let categoryCounts = {};
-        let activeCategory = 'Todos';
-
         document.addEventListener('DOMContentLoaded', () => {
-            initThemeToggle();
-            initPortal();
-        });
-
-        function initThemeToggle() {
             const toggle = document.getElementById('dark-mode-toggle');
             const root = document.documentElement;
 
-            if (!toggle) {
-                return;
-            }
-
-            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 root.classList.add('dark');
             }
 
@@ -55,310 +39,77 @@
                     localStorage.setItem('theme', 'light');
                 }
             });
-        }
 
-        async function initPortal() {
-            const contentArea = document.getElementById('content-area');
-            const navContainer = document.getElementById('sidebar-nav');
+            const mockData = {
+                'Inicio': [
+                    { title: 'Data Science Portal (Mock)', author: 'Arquitectura & DS', category: 'Portales', views: 1200, likes: 45, color: 'bg-green-500', url: '#' },
+                    { title: 'Inventario de Aplicaciones GCP', author: 'Cloud Ops', category: 'Datasets', views: 890, likes: 30, color: 'bg-blue-500', url: '#' },
+                    { title: 'Reporte de Tendencias Predictivas', author: 'Equipo ML', category: 'Artículos', views: 550, likes: 18, color: 'bg-indigo-500', url: '#' },
+                ],
+                'Datasets': [
+                    { title: 'Dataset de Logs Operativos', author: 'LogiX', category: 'Datasets', views: 410, likes: 15, color: 'bg-red-500', url: '#' },
+                ],
+                'Notebooks': [
+                    { title: 'Notebook Exploratorio de BigQuery ML', author: 'Senior Analyst', category: 'Notebooks', views: 320, likes: 10, color: 'bg-yellow-500', url: '#' },
+                ],
+                'Modelos': [
+                    { title: 'Modelo de Predicción de Demanda', author: 'ML Team', category: 'Modelos', views: 670, likes: 22, color: 'bg-purple-500', url: '#' },
+                ],
+                'Artículos': [
+                    { title: 'Guía de Despliegues en Cloud Run', author: 'Arquitectura Cloud', category: 'Artículos', views: 430, likes: 19, color: 'bg-orange-500', url: '#' },
+                ],
+            };
 
-            if (!contentArea || !navContainer) {
-                return;
-            }
+            const loadContent = (category) => {
+                const contentArea = document.getElementById('content-area');
+                const items = mockData[category] || mockData['Inicio'];
 
-            contentArea.innerHTML = `
-                <div class="flex items-center justify-center py-16 text-gray-500 dark:text-gray-400">
-                    <span class="animate-pulse">Cargando catálogo...</span>
-                </div>
-            `;
+                contentArea.innerHTML = `<h2 class="text-xl font-semibold mb-6">Explorando: ${category}</h2>`;
 
-            try {
-                const response = await fetch('/api/apps');
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                const payload = await response.json();
-                appsCatalog = Array.isArray(payload.apps) ? payload.apps : [];
-            } catch (error) {
-                console.error('Error cargando catálogo:', error);
-                contentArea.innerHTML = `
-                    <div class="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-200 p-6 rounded-xl border border-red-200 dark:border-red-800">
-                        <h2 class="text-lg font-semibold mb-2">No se pudo cargar el catálogo</h2>
-                        <p class="text-sm">Verifica que el endpoint <code class="font-mono">/api/apps</code> esté disponible o revisa los logs del servicio Flask.</p>
-                    </div>
-                `;
-                navContainer.innerHTML = '';
-                return;
-            }
-
-            categoryCounts = computeCategoryCounts(appsCatalog);
-            const categories = buildCategoryList(appsCatalog);
-
-            renderSidebar(navContainer, categories);
-            activeCategory = categories[0] || 'Todos';
-            setActiveLink(activeCategory);
-            loadContent(activeCategory);
-        }
-
-        function computeCategoryCounts(catalog) {
-            const counts = {};
-            catalog.forEach(app => {
-                const category = (app.category || 'Otros').trim() || 'Otros';
-                counts[category] = (counts[category] || 0) + 1;
-            });
-            return counts;
-        }
-
-        function buildCategoryList(catalog) {
-            const unique = new Set(['Todos']);
-            catalog.forEach(app => {
-                const category = (app.category || 'Otros').trim() || 'Otros';
-                unique.add(category);
-            });
-            return Array.from(unique);
-        }
-
-        function renderSidebar(container, categories) {
-            container.innerHTML = '';
-            categories.forEach((category, index) => {
-                const link = document.createElement('a');
-                link.href = '#';
-                link.dataset.category = category;
-                link.classList.add('sidebar-link', 'flex', 'items-center', 'p-3', 'rounded-lg', 'text-sm', 'font-medium', 'transition', 'duration-150');
-
-                if (index === 0) {
-                    addActiveClasses(link);
-                } else {
-                    addInactiveClasses(link);
-                }
-
-                const count = category === 'Todos' ? appsCatalog.length : (categoryCounts[category] || 0);
-
-                link.innerHTML = `
-                    ${getCategoryIcon(category)}
-                    <span class="flex-1">${category === 'Todos' ? 'Todos los proyectos' : category}</span>
-                    <span class="text-xs text-gray-400 dark:text-gray-500">${count}</span>
-                `;
-
-                link.addEventListener('click', handleCategoryClick);
-                container.appendChild(link);
-            });
-        }
-
-        function handleCategoryClick(event) {
-            event.preventDefault();
-            const category = event.currentTarget.dataset.category;
-            if (!category || category === activeCategory) {
-                return;
-            }
-            activeCategory = category;
-            setActiveLink(category);
-            loadContent(category);
-        }
-
-        function setActiveLink(category) {
-            document.querySelectorAll('.sidebar-link').forEach(link => {
-                const isActive = link.dataset.category === category;
-                link.classList.remove(...activeLinkClasses, ...inactiveLinkClasses);
-                if (isActive) {
-                    addActiveClasses(link);
-                } else {
-                    addInactiveClasses(link);
-                }
-            });
-        }
-
-        function addActiveClasses(element) {
-            element.classList.add(...activeLinkClasses);
-        }
-
-        function addInactiveClasses(element) {
-            element.classList.add(...inactiveLinkClasses);
-        }
-
-        function loadContent(category) {
-            const contentArea = document.getElementById('content-area');
-            if (!contentArea) {
-                return;
-            }
-
-            if (!appsCatalog.length) {
-                contentArea.innerHTML = `
-                    <div class="bg-white dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl p-10 text-center">
-                        <h2 class="text-lg font-semibold mb-2">Aún no hay proyectos registrados</h2>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Agrega entradas en <code class="font-mono text-gcloud-blue">apps_catalog.json</code> para comenzar.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const filtered = category === 'Todos'
-                ? appsCatalog
-                : appsCatalog.filter(app => {
-                    const cat = (app.category || 'Otros').trim() || 'Otros';
-                    return cat === category;
-                });
-
-            if (!filtered.length) {
-                contentArea.innerHTML = `
-                    <div class="bg-white dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl p-10 text-center">
-                        <h2 class="text-lg font-semibold mb-2">Sin proyectos en esta categoría</h2>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Pronto habrá aplicaciones para "${category}".</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const cardsHtml = filtered.map(renderAppCard).join('');
-            const title = category === 'Todos' ? 'Todos los proyectos' : category;
-            const countLabel = filtered.length === 1 ? '1 proyecto' : `${filtered.length} proyectos`;
-
-            contentArea.innerHTML = `
-                <div class="flex items-center justify-between mb-6">
-                    <div>
-                        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">${title}</h2>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">${countLabel}</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    ${cardsHtml}
-                </div>
-            `;
-        }
-
-        function renderAppCard(app) {
-            const title = app.title || app.id || 'Proyecto sin título';
-            const summary = app.summary || 'Descripción pendiente.';
-            const category = app.category || 'Otros';
-            const owner = app.owner || 'Equipo de Data Science';
-            const lastUpdate = app.last_update || 'Sin fecha';
-            const statusPill = renderStatusPill(app.status);
-            const stackSection = renderStackChips(app.stack);
-            const tagsSection = renderTags(app.tags);
-            const envSection = renderEnvironmentChips(app.environments);
-            const actionButton = renderPrimaryLink(app);
-
-            return `
-                <article class="data-card bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 hover:shadow-xl transition duration-300">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">${category}</span>
-                        ${statusPill}
-                    </div>
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">${title}</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">${summary}</p>
-                    ${stackSection ? `<div class="flex flex-wrap gap-2 mb-3">${stackSection}</div>` : ''}
-                    ${tagsSection ? `<div class="flex flex-wrap gap-2 mb-3">${tagsSection}</div>` : ''}
-                    <div class="mt-6 flex flex-col gap-4 text-sm">
-                        <div class="text-gray-600 dark:text-gray-400">
-                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Owner:</span> ${owner}</p>
-                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Actualización:</span> ${lastUpdate}</p>
+                const cardsHtml = items.map(item => `
+                    <div class="data-card bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.01] transition duration-300 border border-gray-100 dark:border-slate-700 cursor-pointer">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <span class="w-2 h-2 rounded-full ${item.color}"></span>
+                            <span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">${item.category}</span>
                         </div>
-                        ${envSection}
-                        ${actionButton}
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2">${item.title}</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                            Creado por: <span class="font-medium text-gcloud-blue">${item.author}</span>
+                        </p>
+                        <div class="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-slate-700">
+                            <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                                <div title="Vistas" class="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>
+                                    ${item.views}
+                                </div>
+                                <div title="Me gusta" class="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg>
+                                    ${item.likes}
+                                </div>
+                            </div>
+                            <a href="${item.url}" class="text-gcloud-blue dark:text-blue-400 hover:underline font-semibold text-sm">Ver Detalles &rarr;</a>
+                        </div>
                     </div>
-                </article>
-            `;
-        }
+                `).join('');
 
-        function renderStatusPill(status) {
-            const label = status || 'En progreso';
-            const normalized = label.toLowerCase();
-            let classes = 'bg-amber-100 text-amber-700';
-            if (normalized.includes('activo') || normalized.includes('productivo')) {
-                classes = 'bg-emerald-100 text-emerald-700';
-            } else if (normalized.includes('pausado') || normalized.includes('mantenimiento')) {
-                classes = 'bg-slate-200 text-slate-600';
-            } else if (normalized.includes('pendiente')) {
-                classes = 'bg-blue-100 text-blue-700';
-            }
-            return `<span class="px-2.5 py-1 rounded-full text-xs font-semibold ${classes}">${label}</span>`;
-        }
+                contentArea.insertAdjacentHTML('beforeend', `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        ${cardsHtml}
+                    </div>
+                `);
+            };
 
-        function renderStackChips(stack) {
-            if (!Array.isArray(stack) || stack.length === 0) {
-                return '';
-            }
-            return stack
-                .map(item => `<span class="px-2 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 dark:text-slate-200 text-slate-700 rounded-md">${item}</span>`)
-                .join('');
-        }
-
-        function renderTags(tags) {
-            if (!Array.isArray(tags) || tags.length === 0) {
-                return '';
-            }
-            return tags
-                .map(tag => `<span class="px-2 py-1 text-xs font-medium bg-gcloud-blue/10 text-gcloud-blue dark:bg-blue-500/20 dark:text-blue-200 rounded-md">${tag}</span>`)
-                .join('');
-        }
-
-        function renderEnvironmentChips(environments) {
-            if (!environments || typeof environments !== 'object') {
-                return '';
-            }
-            const chips = Object.entries(environments).map(([key, value]) => {
-                const label = (value && value.label) || key.toUpperCase();
-                const url = value && value.url;
-                if (url) {
-                    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 text-xs font-semibold rounded-full border border-gcloud-blue text-gcloud-blue hover:bg-gcloud-blue hover:text-white transition" title="Abrir ${label}">${label}</a>`;
-                }
-                return `<span class="px-3 py-1 text-xs font-semibold rounded-full border border-gray-300 text-gray-400 cursor-not-allowed opacity-60" title="URL pendiente">${label}</span>`;
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('bg-gray-100', 'dark:bg-slate-700', 'text-gcloud-blue'));
+                    e.currentTarget.classList.add('bg-gray-100', 'dark:bg-slate-700', 'text-gcloud-blue');
+                    loadContent(e.currentTarget.dataset.category);
+                });
             });
-            if (!chips.length) {
-                return '';
-            }
-            return `<div class="flex flex-wrap gap-2 justify-start sm:justify-end">${chips.join('')}</div>`;
-        }
 
-        function renderPrimaryLink(app) {
-            const primary = resolvePrimaryUrl(app);
-            if (!primary) {
-                return '';
-            }
-            return `
-                <div>
-                    <a href="${primary.url}" target="_blank" rel="noopener noreferrer"
-                       class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-gcloud-blue text-white hover:bg-blue-600 transition">
-                        ${primary.label}
-                    </a>
-                </div>
-            `;
-        }
-
-        function resolvePrimaryUrl(app) {
-            if (app.primary_url) {
-                return { label: '🚀 Abrir', url: app.primary_url };
-            }
-            if (app.environments && typeof app.environments === 'object') {
-                for (const key of ['pro', 'qua', 'dev']) {
-                    const env = app.environments[key];
-                    if (env && env.url) {
-                        return { label: `🚀 ${env.label}`, url: env.url };
-                    }
-                }
-            }
-            return null;
-        }
-
-        function getCategoryIcon(category) {
-            const baseClass = 'h-5 w-5 mr-3 text-gray-500 dark:text-gray-400';
-            const normalized = category.toLowerCase();
-            if (category === 'Todos') {
-                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M6 3a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3V6a3 3 0 00-3-3H6zM6 11a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3v-1a3 3 0 00-3-3H6zM12 3a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3V6a3 3 0 00-3-3h-1zM12 11a3 3 0 00-3 3v1a3 3 0 003 3h1a3 3 0 003-3v-1a3 3 0 00-3-3h-1z"/></svg>`;
-            }
-            if (normalized.includes('dataset')) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 012-2h8a2 2 0 012 2v3a2 2 0 01-2 2H6a2 2 0 01-2-2V3zm2 8a2 2 0 00-2 2v3a2 2 0 002 2h8a2 2 0 002-2v-3a2 2 0 00-2-2H6z" clip-rule="evenodd"/></svg>`;
-            }
-            if (normalized.includes('notebook')) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 012-2h6.5a2 2 0 011.414.586l1.5 1.5A2 2 0 0116 5.914V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/><path d="M8 11h4a1 1 0 010 2H8a1 1 0 110-2zM8 7h4a1 1 0 010 2H8a1 1 0 110-2z"/></svg>`;
-            }
-            if (normalized.includes('modelo')) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M11 17a1 1 0 001-1v-2.586l2.293 2.293a1 1 0 001.414-1.414L13.414 12H16a1 1 0 100-2h-2.586l2.293-2.293a1 1 0 10-1.414-1.414L11 8.586V6a1 1 0 10-2 0v2.586L6.707 6.293A1 1 0 105.293 7.707L7.586 10H5a1 1 0 100 2h2.586l-2.293 2.293a1 1 0 001.414 1.414L9 13.414V16a1 1 0 001 1z"/></svg>`;
-            }
-            if (normalized.includes('portal')) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-4a4 4 0 100-8 4 4 0 000 8z" clip-rule="evenodd"/></svg>`;
-            }
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="${baseClass}" viewBox="0 0 20 20" fill="currentColor"><path d="M10.553 2.553a1 1 0 00-1.106 0l-6 4A1 1 0 003 7.382V15a2 2 0 001 1h10a2 2 0 002-2V7.382a1 1 0 00-.447-.829l-6-4z"/></svg>`;
-        }
+            loadContent('Inicio');
+        });
     </script>
     <style>
         /* Estilo base para la fuente Inter y transiciones */
@@ -421,7 +172,28 @@
             <!-- BARRA LATERAL (SIDEBAR) - NAVEGACIÓN Y FILTROS -->
             <aside class="md:w-64 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 md:sticky md:top-20 h-fit">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b pb-2 dark:border-slate-700">Categorías</h3>
-                <nav id="sidebar-nav" class="space-y-2"></nav>
+                <nav class="space-y-2">
+                    <a href="#" data-category="Inicio" class="sidebar-link flex items-center p-3 rounded-lg text-gcloud-blue font-semibold bg-gray-100 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700 transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
+                        Inicio
+                    </a>
+                    <a href="#" data-category="Datasets" class="sidebar-link flex items-center p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.707.959l-2.022.45c-.322.072-.656.108-.991.108H8.5c-.335 0-.669-.036-.991-.108l-2.022-.45A1 1 0 013 6V3z" clip-rule="evenodd" /><path d="M12 11a1 1 0 011 1v4a1 1 0 01-2 0v-4a1 1 0 011-1zm-4 0a1 1 0 011 1v4a1 1 0 01-2 0v-4a1 1 0 011-1z" /></svg>
+                        Datasets (BigQuery)
+                    </a>
+                    <a href="#" data-category="Notebooks" class="sidebar-link flex items-center p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 100 2h2a1 1 0 100-2h-2z" /><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm4 3a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" /></svg>
+                        Notebooks (Jupyter)
+                    </a>
+                    <a href="#" data-category="Modelos" class="sidebar-link flex items-center p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition duración-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2H5zm0 2h10v6H5V6z" /><path d="M8.293 8.293a1 1 0 011.414 0l1.414 1.414a1 1 0 01-1.414 1.414l-1.414-1.414a1 1 0 010-1.414z" /></svg>
+                        Modelos ML
+                    </a>
+                    <a href="#" data-category="Artículos" class="sidebar-link flex items-center p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 4a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm0 3a1 1 0 100 2h6a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+                        Artículos y Docs
+                    </a>
+                </nav>
                 
                 <div class="mt-8 pt-4 border-t dark:border-slate-700">
                     <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase">Herramientas GCloud</h3>
