@@ -17,7 +17,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 db = WorksDatabase()
 
-app = Flask(__name__, static_folder=BASE_DIR)
+app = Flask(__name__)
 
 
 def format_timestamp(value) -> str:
@@ -35,7 +35,8 @@ def format_timestamp(value) -> str:
 @app.route('/', methods=['GET'])
 def serve_portal():
     """Entrega la página principal del portal de ciencia de datos."""
-    return app.send_static_file('index.html')
+    with open(os.path.join(BASE_DIR, 'index.html'), 'r', encoding='utf-8') as f:
+        return f.read()
 
 
 @app.route('/api/health', methods=['GET'])
