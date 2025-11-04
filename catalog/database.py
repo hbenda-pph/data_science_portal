@@ -5,6 +5,7 @@ Replica la lógica de `data_science_index/shared/database.py` sin dependencias d
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Dict, List, Optional
 

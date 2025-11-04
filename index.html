@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal de Datos y Análisis (GCloud Ready)</title>
+    <title>Data Science Portal</title>
     <!-- Carga de Tailwind CSS para un diseño moderno y responsivo -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -29,7 +29,8 @@
             categories: [],
             works: [],
             categoryMap: {},
-            activeCategory: 'all'
+            activeCategory: 'all',
+            detailWork: null
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -69,7 +70,7 @@
 
             contentArea.innerHTML = `
                 <div class="flex items-center justify-center py-16 text-gray-500 dark:text-gray-400">
-                    <span class="animate-pulse">Cargando catálogo...</span>
+                    <span class="animate-pulse">Loading catalog...</span>
                 </div>
             `;
 
@@ -85,16 +86,16 @@
                 renderSidebar();
                 setActiveCategory('all');
             } catch (error) {
-                console.error('Error cargando catálogo:', error);
+                console.error('Error loading catalog:', error);
                 navContainer.innerHTML = `
                     <div class="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-200 p-4 text-sm">
-                        No se pudieron cargar las categorías.
+                        Categories could not be loaded.
                     </div>
                 `;
                 contentArea.innerHTML = `
                     <div class="bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 rounded-xl p-10 text-center text-red-600 dark:text-red-200">
-                        <h2 class="text-lg font-semibold mb-2">Error al cargar el catálogo</h2>
-                        <p>Revisa los logs del servicio Flask o las credenciales de BigQuery.</p>
+                        <h2 class="text-lg font-semibold mb-2">Catalog failed to load</h2>
+                        <p>Check the Flask service logs or the BigQuery credentials.</p>
                     </div>
                 `;
             }
@@ -113,7 +114,7 @@
             navContainer.innerHTML = '';
 
             const totalCount = catalogState.works.length;
-            const allLink = createCategoryLink('all', 'Todos los proyectos', totalCount, true);
+            const allLink = createCategoryLink('all', 'All projects', totalCount, true);
             navContainer.appendChild(allLink);
 
             catalogState.categories.forEach((cat) => {
@@ -171,24 +172,29 @@
                 return;
             }
 
+            if (catalogState.detailWork) {
+                renderWorkDetail(contentArea, catalogState.detailWork);
+                return;
+            }
+
             const categoryId = catalogState.activeCategory;
             const works = categoryId === 'all'
                 ? catalogState.works
                 : catalogState.works.filter(work => work.category_id === categoryId);
 
             if (!works.length) {
-                const categoryLabel = categoryId === 'all' ? 'el catálogo' : (catalogState.categoryMap[categoryId] || categoryId);
+                const categoryLabel = categoryId === 'all' ? 'the catalog' : (catalogState.categoryMap[categoryId] || categoryId);
                 contentArea.innerHTML = `
                     <div class="bg-white dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl p-10 text-center">
-                        <h2 class="text-lg font-semibold mb-2">Sin proyectos para ${categoryLabel}</h2>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Pronto habrá contenido disponible.</p>
+                        <h2 class="text-lg font-semibold mb-2">No projects for ${categoryLabel}</h2>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">More content coming soon.</p>
                     </div>
                 `;
                 return;
             }
 
-            const currentLabel = categoryId === 'all' ? 'Todos los proyectos' : (catalogState.categoryMap[categoryId] || categoryId);
-            const countLabel = works.length === 1 ? '1 proyecto' : `${works.length} proyectos`;
+            const currentLabel = categoryId === 'all' ? 'All projects' : (catalogState.categoryMap[categoryId] || categoryId);
+            const countLabel = works.length === 1 ? '1 project' : `${works.length} projects`;
 
             const cardsHtml = works.map(renderAppCard).join('');
             contentArea.innerHTML = `
@@ -213,17 +219,17 @@
             return `
                 <article class="data-card bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 hover:shadow-xl transition duration-300">
                     <div class="flex items-center justify-between mb-4">
-                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">${work.category_name || 'Sin categoría'}</span>
+                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">${work.category_name || 'No category'}</span>
                         ${renderStatusPill(work.status)}
                     </div>
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">${work.title}</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">${work.summary || 'Descripción pendiente.'}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">${work.summary || 'Description pending.'}</p>
                     ${stackSection ? `<div class="flex flex-wrap gap-2 mb-3">${stackSection}</div>` : ''}
                     ${tagsSection ? `<div class="flex flex-wrap gap-2 mb-3">${tagsSection}</div>` : ''}
                     <div class="mt-6 flex flex-col gap-4 text-sm">
                         <div class="text-gray-600 dark:text-gray-400">
-                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Owner:</span> ${work.owner || 'Equipo de Data Science'}</p>
-                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Actualización:</span> ${work.last_update || 'Sin fecha'}</p>
+                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Owner:</span> ${work.owner || 'Data Science Team'}</p>
+                            <p><span class="font-semibold text-gray-700 dark:text-gray-200">Updated:</span> ${work.last_update || 'No date'}</p>
                         </div>
                         ${envSection}
                         ${actionSection}
@@ -232,8 +238,57 @@
             `;
         }
 
+        function renderWorkDetail(container, work) {
+            const stackSection = renderStackChips(work.stack);
+            const tagsSection = renderTags(work.tags);
+            const envSection = renderEnvironmentChips(work.environments);
+
+            const iframeUrl = work.primary_url;
+            const warning = iframeUrl ? '' : `
+                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-200 rounded-lg p-4 text-sm">
+                    No primary URL found for this work.
+                </div>
+            `;
+
+            container.innerHTML = `
+                <div class="flex items-center justify-between mb-4">
+                    <button id="back-to-list" class="inline-flex items-center px-3 py-2 text-sm font-semibold text-gcloud-blue hover:text-blue-600 transition">
+                        ← Back to catalog
+                    </button>
+                </div>
+                <article class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 mb-6">
+                    <div class="flex flex-col gap-4">
+                        <div>
+                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">${work.category_name || 'No category'}</span>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mt-2">${work.title}</h2>
+                            <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">${work.description || work.summary || 'Description pending.'}</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 dark:text-gray-300">
+                            <div><span class="font-semibold">Owner:</span> ${work.owner || 'Data Science Team'}</div>
+                            <div><span class="font-semibold">Version:</span> ${work.version || 'N/A'}</div>
+                            <div><span class="font-semibold">Updated:</span> ${work.last_update || 'No date'}</div>
+                        </div>
+                        ${stackSection ? `<div><span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Stack:</span><div class="flex flex-wrap gap-2 mt-2">${stackSection}</div></div>` : ''}
+                        ${tagsSection ? `<div><span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Tags:</span><div class="flex flex-wrap gap-2 mt-2">${tagsSection}</div></div>` : ''}
+                        ${envSection}
+                    </div>
+                </article>
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700">
+                    ${iframeUrl ? `<iframe src="${iframeUrl}" title="${work.title}" class="w-full h-[70vh] rounded-b-xl" frameborder="0"></iframe>` : warning}
+                </div>
+            `;
+
+            const backButton = document.getElementById('back-to-list');
+            if (backButton) {
+                backButton.addEventListener('click', () => {
+                    catalogState.detailWork = null;
+                    renderWorks();
+                });
+            }
+        }
+
         function renderStatusPill(status) {
-            const label = (status || 'En progreso').toLowerCase();
+            const label = (status || 'In progress').toLowerCase();
             let classes = 'bg-amber-100 text-amber-700';
             if (label.includes('active') || label.includes('activo')) {
                 classes = 'bg-emerald-100 text-emerald-700';
@@ -242,7 +297,7 @@
             } else if (label.includes('maintenance') || label.includes('mantenimiento')) {
                 classes = 'bg-blue-100 text-blue-700';
             }
-            return `<span class="px-2.5 py-1 rounded-full text-xs font-semibold ${classes}">${status || 'En progreso'}</span>`;
+            return `<span class="px-2.5 py-1 rounded-full text-xs font-semibold ${classes}">${status || 'In progress'}</span>`;
         }
 
         function renderStackChips(stack) {
@@ -265,9 +320,9 @@
             }
             const chips = Object.entries(environments).map(([key, env]) => {
                 if (env && env.url) {
-                    return `<a href="${env.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 text-xs font-semibold rounded-full border border-gcloud-blue text-gcloud-blue hover:bg-gcloud-blue hover:text-white transition" title="Abrir ${env.label || key.toUpperCase()}">${env.label || key.toUpperCase()}</a>`;
+                    return `<a href="${env.url}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 text-xs font-semibold rounded-full border border-gcloud-blue text-gcloud-blue hover:bg-gcloud-blue hover:text-white transition" title="Open ${env.label || key.toUpperCase()}">${env.label || key.toUpperCase()}</a>`;
                 }
-                return `<span class="px-3 py-1 text-xs font-semibold rounded-full border border-gray-300 text-gray-400 cursor-not-allowed opacity-60" title="URL pendiente">${env && env.label ? env.label : key.toUpperCase()}</span>`;
+                return `<span class="px-3 py-1 text-xs font-semibold rounded-full border border-gray-300 text-gray-400 cursor-not-allowed opacity-60" title="URL pending">${env && env.label ? env.label : key.toUpperCase()}</span>`;
             });
             if (!chips.length) {
                 return '';
@@ -282,27 +337,44 @@
             }
             return `
                 <div>
-                    <a href="${primary.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-gcloud-blue text-white hover:bg-blue-600 transition">
-                        ${primary.label}
-                    </a>
+                    <button data-work-id="${work.id}" class="open-detail inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-gcloud-blue text-white hover:bg-blue-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path d="M12.293 2.293a1 1 0 011.414 0L18 6.586a1 1 0 01-1.414 1.414L13 4.414V13a1 1 0 11-2 0V4.414L8.707 8a1 1 0 01-1.414-1.414l4.293-4.293z" />
+                            <path d="M5 9a1 1 0 011 1v5h8v-2a1 1 0 112 0v3a1 1 0 01-1 1H6a1 1 0 01-1-1v-6a1 1 0 011-1z" />
+                        </svg>
+                        <span>${primary.label}</span>
+                    </button>
                 </div>
             `;
         }
 
         function resolvePrimaryLink(work) {
             if (work.primary_url) {
-                return { label: '🚀 Abrir', url: work.primary_url };
+                return { label: 'Open', url: work.primary_url };
             }
             if (work.environments && typeof work.environments === 'object') {
                 for (const key of ['pro', 'qua', 'dev']) {
                     const env = work.environments[key];
                     if (env && env.url) {
-                        return { label: `🚀 ${env.label || key.toUpperCase()}`, url: env.url };
+                        return { label: `Open ${env.label || key.toUpperCase()}`, url: env.url };
                     }
                 }
             }
             return null;
         }
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target && target.classList && target.classList.contains('open-detail')) {
+                event.preventDefault();
+                const workId = target.getAttribute('data-work-id');
+                const work = catalogState.works.find(item => item.id === workId);
+                if (work) {
+                    catalogState.detailWork = work;
+                    renderWorks();
+                }
+            }
+        });
     </script>
     <style>
         /* Estilo base para la fuente Inter y transiciones */
@@ -328,22 +400,20 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
             <!-- Logo/Título del Portal -->
             <div class="flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gcloud-blue mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414 1.414l.707.707a1 1 0 001.414-1.414l-.707-.707zM18 10a1 1 0 00-1-1h-1a1 1 0 100 2h1a1 1 0 001-1zM15.657 14.243l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zM11 17a1 1 0 10-2 0v1a1 1 0 102 0v-1zM4.343 14.243a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM3 10a1 1 0 00-1-1H1a1 1 0 100 2h1a1 1 0 001-1zM4.343 5.757l-.707-.707a1 1 0 00-1.414 1.414l.707.707a1 1 0 001.414-1.414z" />
-                </svg>
-                <span class="text-2xl font-extrabold text-gray-900 dark:text-white">BIGQUERY PORTAL</span>
+                <img src="PPH_Logo.png" alt="Portal Platform Partners" class="h-8 w-8 mr-2 rounded" />
+                <span class="text-2xl font-extrabold text-gray-900 dark:text-white">DATA SCIENCE PORTAL</span>
             </div>
             
             <!-- Barra de Búsqueda y Acciones -->
             <div class="flex items-center space-x-4">
                 <!-- Barra de Búsqueda (Oculta en móviles, visible en md+) -->
                 <div class="hidden md:block relative">
-                    <input type="text" placeholder="Buscar datasets, notebooks o autores..." class="w-80 p-2 pl-10 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-gcloud-blue focus:border-gcloud-blue dark:bg-slate-700 dark:text-white transition duration-150" />
+                    <input type="text" placeholder="Search datasets, notebooks, or authors..." class="w-80 p-2 pl-10 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-gcloud-blue focus:border-gcloud-blue dark:bg-slate-700 dark:text-white transition duration-150" />
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
                 </div>
                 
                 <!-- Toggle de Modo Oscuro -->
-                <button id="dark-mode-toggle" class="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition duration-150" aria-label="Cambiar Tema">
+                <button id="dark-mode-toggle" class="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition duration-150" aria-label="Toggle theme">
                     <!-- Icono de Sol / Luna -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 sun-icon dark:hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.332 2.766a1 1 0 01.32-.21l.71-.237a1 1 0 11.66 1.986l-.71.237a1 1 0 01-.32.21 1 1 0 01-1.076-.214l-.707-.707a1 1 0 01.707-1.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4.332 14.766a1 1 0 01.32-.21l-.71-.237a1 1 0 11.66-1.986l.71.237a1 1 0 01-.32.21 1 1 0 01-1.076.214l-.707.707a1 1 0 01.707 1.707zM10 16a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.757 14.243a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707zM10 14a4 4 0 100-8 4 4 0 000 8z" clip-rule="evenodd" /></svg>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden moon-icon dark:block" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 17.293a1 1 0 01-1.414 0L10 11.414l-5.879 5.879a1 1 0 01-1.414-1.414L8.586 10 2.707 4.121a1 1 0 111.414-1.414L10 8.586l5.879-5.879a1 1 0 111.414 1.414L11.414 10l5.879 5.879a1 1 0 010 1.414z" /></svg>
@@ -352,7 +422,7 @@
                 <!-- Perfil de Usuario -->
                 <button class="flex items-center space-x-2 text-gray-800 dark:text-white hover:text-gcloud-blue dark:hover:text-blue-400 transition duration-150">
                     <div class="h-8 w-8 bg-gcloud-blue rounded-full flex items-center justify-center text-white text-sm font-semibold">AR</div>
-                    <span class="hidden sm:block text-sm font-medium">Arquitecto</span>
+                    <span class="hidden sm:block text-sm font-medium">Architect</span>
                 </button>
             </div>
         </div>
@@ -364,11 +434,11 @@
             
             <!-- BARRA LATERAL (SIDEBAR) - NAVEGACIÓN Y FILTROS -->
             <aside class="md:w-64 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 md:sticky md:top-20 h-fit">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b pb-2 dark:border-slate-700">Categorías</h3>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b pb-2 dark:border-slate-700">Categories</h3>
                 <nav id="sidebar-nav" class="space-y-2"></nav>
 
                 <div class="mt-8 pt-4 border-t dark:border-slate-700">
-                    <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase">Herramientas GCloud</h3>
+                    <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase">GCloud Tools</h3>
                     <ul class="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                         <li><a href="#" class="hover:text-gcloud-blue transition duration-150">Cloud Run Services</a></li>
                         <li><a href="#" class="hover:text-gcloud-blue transition duration-150">BigQuery Console</a></li>
@@ -379,7 +449,7 @@
 
             <!-- ÁREA DE CONTENIDO PRINCIPAL (TARJETAS DE DATOS/ARTÍCULOS) -->
             <section class="flex-1 min-w-0" id="content-area">
-                <!-- El contenido se inyectará aquí mediante JavaScript -->
+                <!-- Contenido dinámico del catálogo / detalle se renderiza vía JavaScript -->
             </section>
         </div>
     </main>
